@@ -19,10 +19,10 @@ Le dataset est structuré de la manière suivante :
 Les données sont stockées dans le dossier `/data/`.
 
 Ce dataset a été choisi car :
-- il est suffisamment volumineux pour permettre des analyses pertinentes  
-- il contient des variables variées (numériques, catégorielles, binaires)  
-- il permet de répondre à des questions concrètes sur la performance en jeu  
-- il est facilement manipulable avec les outils R étudiés en cours  
+- il est suffisamment volumineux pour permettre des analyses pertinentes.
+- il contient des variables variées (numériques, catégorielles, binaires).  
+- il permet de répondre à des questions concrètes sur la performance en jeu.
+- il est facilement manipulable avec les outils R étudiés en cours. 
 
 ---
 
