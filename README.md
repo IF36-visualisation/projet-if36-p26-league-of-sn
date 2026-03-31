@@ -1,7 +1,7 @@
 # League of SN — Analyse des performances dans League of Legends
 
 <p align="center">
-  <img src="assets/league-of-sn.png" width="400"/>
+  <img src="assets/league-of-sn.png" width="700"/>
 </p>
 
 ## Introduction
