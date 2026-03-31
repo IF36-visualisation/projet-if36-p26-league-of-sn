@@ -75,33 +75,81 @@ L’objectif du projet est de répondre à la problématique suivante :
 
 > **Quels indicateurs de performance individuelle influencent le plus la victoire dans une partie de League of Legends ?**
 
-L’analyse sera structurée en plusieurs étapes.
+Pour répondre à cette question, nous adoptons une démarche progressive d’exploration et d’analyse des données, structurée en plusieurs parties.
+
+---
 
 #### 1. Exploration des données
-- Distribution des variables principales  
-- Analyse de l’équilibre victoire/défaite  
 
-#### 2. Performance individuelle
-- Comparaison des kills, deaths, assists  
-- Analyse du gold, du CS et du damage  
-- Étude du KDA  
+Dans un premier temps, nous réalisons une analyse descriptive du dataset afin de mieux comprendre sa structure, la nature des variables et leur distribution. Cette étape permet d’identifier d’éventuelles anomalies et de préparer les analyses suivantes.
+
+Exemples de questions :
+
+- Quelle est la distribution des variables principales (kills, deaths, gold, cs, damage) ?
+- La variable `win` est-elle équilibrée entre victoires et défaites ?
+- Certaines variables présentent-elles des valeurs atypiques ou extrêmes ?
+
+---
+
+#### 2. Performance individuelle et victoire
+
+Nous analysons l’impact des performances individuelles sur la probabilité de victoire afin d’identifier les variables les plus discriminantes.
+
+Exemples de questions :
+
+- Les joueurs gagnants ont-ils en moyenne plus de kills que les perdants ?
+- Les joueurs perdants ont-ils davantage de deaths ?
+- Le KDA est-il plus élevé chez les joueurs gagnants ?
+- Le gold gagné est-il plus élevé chez les joueurs qui gagnent ?
+- Le CS est-il plus élevé chez les joueurs gagnants ?
+- Le damage infligé est-il un bon indicateur de victoire ?
+
+---
 
 #### 3. Relations entre variables
-- Corrélation gold / CS  
-- Corrélation damage / kills  
-- Analyse du lien avec la victoire  
+
+Nous étudions les liens entre les différentes variables du dataset afin de mieux comprendre les interactions entre les indicateurs de performance.
+
+Exemples de questions :
+
+- Le gold est-il corrélé au CS ?
+- Le damage infligé est-il corrélé au nombre de kills ?
+- Le KDA est-il corrélé à la victoire ?
+- Le nombre de deaths impacte-t-il plus la victoire que les kills ?
+
+---
 
 #### 4. Analyse par rôle
-- Winrate par rôle  
-- Différences de style de jeu  
+
+Nous comparons les performances selon les rôles joués afin d’identifier des différences de style de jeu et d’impact sur la victoire.
+
+Exemples de questions :
+
+- Certains rôles ont-ils un meilleur winrate que d’autres ?
+- Les rôles présentent-ils des profils de performance différents (kills, vision, gold, damage) ?
+- Les performances économiques et offensives varient-elles selon le rôle ?
+
+---
 
 #### 5. Analyse par champion
-- Champions les plus joués  
-- Winrate (avec filtre)  
+
+Nous analysons les champions afin d’identifier d’éventuelles tendances liées au choix du personnage.
+
+Exemples de questions :
+
+- Quels sont les champions les plus joués dans le dataset ?
+- Quels champions ont le meilleur winrate (avec un nombre minimum de matchs) ?
+- Certains champions présentent-ils des profils statistiques spécifiques ?
+
+---
 
 #### 6. Modélisation
-- Régression logistique  
-- Identification des variables influentes  
+
+Enfin, nous cherchons à synthétiser les résultats via un modèle prédictif.
+
+Exemples de questions :
+
+- Peut-on prédire la victoire à partir des variables disponibles ?
 
 ---
 
