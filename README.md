@@ -1,177 +1,243 @@
-# League of SN — Analyse des performances dans League of Legends
+# League of SN : Exploration des dynamiques de performance dans League of Legends  
+Projet IF36 : Université de Technologie de Troyes
 
 <p align="center">
   <img src="assets/league-of-sn.png" width="700"/>
 </p>
 
+---
+
 ## Introduction
 
 ### Données
 
-Dans le cadre de ce projet, nous avons choisi d’analyser des données issues du jeu vidéo **League of Legends**. Ce choix s’inscrit dans une volonté de travailler sur un sujet pertinent, actuel et motivant, permettant d’étudier des problématiques concrètes liées à la performance et à la prise de décision.
+Notre projet repose sur l’exploitation de deux sources de données complémentaires issues de League of Legends. L’objectif est de croiser une analyse à deux niveaux :
 
-Le jeu de données a été construit à partir de l’API officielle Riot Games. Il contient des informations sur des parties classées (ranked) récentes, issues de joueurs de haut niveau (Challenger, Grandmaster, Master).
+- une vision **individuelle** avec les données soloQ  
+- une vision **collective et stratégique** avec les données professionnelles  
 
-Le dataset est structuré de la manière suivante :
+Cette approche permet de construire une analyse riche et multidimensionnelle du jeu.
 
-- **Nombre d’observations** : 1690 lignes  
-- **Nombre de variables totales** : 21 variables  
-- **Nombre de variables réellement exploitables** : **18 variables**  
-- **Format** : CSV  
+---
+
+## Source principale : Riot Games API — Dataset SoloQ
+
+Le premier dataset est issu de l’API Riot Games et contient des parties classées de joueurs de haut niveau.
+
 - **Structure** : 1 ligne = 1 joueur dans une partie  
+- **Contexte** : environnement non coordonné (soloQ)  
 
-Les données sont stockées dans le dossier `/data/`.
+Variables principales :
 
-Ce dataset a été choisi car :
-- il est suffisamment volumineux pour permettre des analyses pertinentes.
-- il contient des variables variées (numériques, catégorielles, binaires).  
-- il permet de répondre à des questions concrètes sur la performance en jeu.
-- il est facilement manipulable avec les outils R étudiés en cours. 
+- performance : `kills`, `deaths`, `assists`, `kda`  
+- ressources : `gold`, `cs`  
+- vision : `vision`, `wards_placed`, `wards_killed`  
+- combat : `damage`, `damage_taken`  
+- contexte : `role`, `champion`, `game_duration`  
+- résultat : `win`  
 
----
-
-### Description des variables
-
-| Variable | Type | Description | Utilisée |
-|----------|------|------------|----------|
-| match_id | Identifiant | Identifiant unique de la partie | ❌ |
-| game_creation | Temporel | Date de création de la partie | ❌ |
-| game_duration | Numérique | Durée de la partie (en secondes) | ✔️ |
-| queue_id | Catégorielle | Type de partie | ✔️ |
-| champion | Catégorielle | Champion joué | ✔️ |
-| role | Catégorielle | Rôle du joueur (TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY) | ✔️ |
-| lane | Catégorielle | Position sur la carte | ⚠️ (peu fiable) |
-| win | Binaire | Résultat (1 = victoire, 0 = défaite) | ✔️ |
-| kills | Numérique | Nombre de kills | ✔️ |
-| deaths | Numérique | Nombre de morts | ✔️ |
-| assists | Numérique | Nombre d’assists | ✔️ |
-| gold | Numérique | Gold gagné | ✔️ |
-| cs | Numérique | Nombre de sbires tués | ✔️ |
-| vision | Numérique | Score de vision | ✔️ |
-| damage | Numérique | Dégâts infligés | ✔️ |
-| damage_taken | Numérique | Dégâts subis | ✔️ |
-| wards_placed | Numérique | Balises placées | ✔️ |
-| wards_killed | Numérique | Balises détruites | ✔️ |
-| champ_level | Numérique | Niveau du champion | ✔️ |
-| puuid | Identifiant | Identifiant du joueur | ❌ |
-| kda | Numérique | (kills + assists) / deaths | ✔️ |
+Ce dataset permet d’analyser la performance individuelle.
 
 ---
 
-### Variables exploitées
+## Source complémentaire : Oracle’s Elixir — Dataset professionnel
 
-Afin de respecter les consignes du projet (10 à 20 variables pertinentes), nous avons effectué une sélection des variables.
+Le second dataset provient de la scène compétitive (LEC, LCK, LCS, LPL…).
 
-Les variables suivantes ont été exclues de l’analyse :
-- `match_id` → identifiant technique  
-- `puuid` → identifiant joueur  
-- `game_creation` → non pertinent pour l’analyse  
+- **Structure** : 1 ligne = 1 joueur dans une partie  
+- **Contexte** : environnement coordonné et stratégique  
 
-La variable `lane` est conservée à titre informatif mais sera peu ou pas utilisée en raison de possibles incohérences avec la variable `role`.
+Variables principales :
 
-Ainsi, l’analyse repose sur **18 variables réellement exploitables**, ce qui correspond parfaitement aux attentes du projet.
+- performance : `kills`, `deaths`, `assists`, `kda`  
+- ressources : `gold`, `cs`  
+- early game : `goldat10`, `golddiffat10`, `goldat15`, `goldat20`  
+- objectifs : `dragons`, `barons`, `heralds`, `towers`  
+- vision : `vision`, `wardsplaced`, `controlwardsbought`  
+- équipe : `teamkills`, `damageshare`, `kill_participation`  
+- contexte : `role`, `champion`, `player`, `team`, `league`  
+- résultat : `win`  
 
----
-
-### Plan d’analyse
-
-L’objectif du projet est de répondre à la problématique suivante :
-
-> **Quels indicateurs de performance individuelle influencent le plus la victoire dans une partie de League of Legends ?**
-
-Pour répondre à cette question, nous adoptons une démarche progressive d’exploration et d’analyse des données, structurée en plusieurs parties.
+Ce dataset permet une analyse macro et stratégique.
 
 ---
 
-#### 1. Exploration des données
+## Résumé du schéma de données
 
-Dans un premier temps, nous réalisons une analyse descriptive du dataset afin de mieux comprendre sa structure, la nature des variables et leur distribution. Cette étape permet d’identifier d’éventuelles anomalies et de préparer les analyses suivantes.
+Nous combinons deux visions du jeu :
 
-Exemples de questions :
+- soloQ → performance individuelle  
+- pro → stratégie collective  
 
-- Quelle est la distribution des variables principales (kills, deaths, gold, cs, damage) ?
-- La variable `win` est-elle équilibrée entre victoires et défaites ?
-- Certaines variables présentent-elles des valeurs atypiques ou extrêmes ?
-
----
-
-#### 2. Performance individuelle et victoire
-
-Nous analysons l’impact des performances individuelles sur la probabilité de victoire afin d’identifier les variables les plus discriminantes.
-
-Exemples de questions :
-
-- Les joueurs gagnants ont-ils en moyenne plus de kills que les perdants ?
-- Les joueurs perdants ont-ils davantage de deaths ?
-- Le KDA est-il plus élevé chez les joueurs gagnants ?
-- Le gold gagné est-il plus élevé chez les joueurs qui gagnent ?
-- Le CS est-il plus élevé chez les joueurs gagnants ?
-- Le damage infligé est-il un bon indicateur de victoire ?
+Ce contraste est au cœur de notre analyse.
 
 ---
 
-#### 3. Relations entre variables
+## Plan d’analyse
 
-Nous étudions les liens entre les différentes variables du dataset afin de mieux comprendre les interactions entre les indicateurs de performance.
-
-Exemples de questions :
-
-- Le gold est-il corrélé au CS ?
-- Le damage infligé est-il corrélé au nombre de kills ?
-- Le KDA est-il corrélé à la victoire ?
-- Le nombre de deaths impacte-t-il plus la victoire que les kills ?
+Notre analyse s’articule autour de trois axes.
 
 ---
 
-#### 4. Analyse par rôle
+## Axe 1 — La performance individuelle en soloQ
 
-Nous comparons les performances selon les rôles joués afin d’identifier des différences de style de jeu et d’impact sur la victoire.
+Dans la soloQ, la performance repose principalement sur les actions individuelles. Nous cherchons donc à identifier les facteurs qui influencent directement la victoire.
 
-Exemples de questions :
+### Q1 : Le KDA est-il un bon indicateur de victoire ?
 
-- Certains rôles ont-ils un meilleur winrate que d’autres ?
-- Les rôles présentent-ils des profils de performance différents (kills, vision, gold, damage) ?
-- Les performances économiques et offensives varient-elles selon le rôle ?
+Nous comparons la distribution du KDA entre joueurs gagnants et perdants à l’aide de boxplots. Cette analyse permet d’évaluer si cet indicateur reflète réellement la performance globale.
 
 ---
 
-#### 5. Analyse par champion
+### Q2 : La survie influence-t-elle la victoire ?
 
-Nous analysons les champions afin d’identifier d’éventuelles tendances liées au choix du personnage.
-
-Exemples de questions :
-
-- Quels sont les champions les plus joués dans le dataset ?
-- Quels champions ont le meilleur winrate (avec un nombre minimum de matchs) ?
-- Certains champions présentent-ils des profils statistiques spécifiques ?
+Nous analysons la variable `deaths` afin de déterminer si limiter ses morts constitue un facteur déterminant dans l’issue des parties.
 
 ---
 
-#### 6. Modélisation
+### Q3 : L’économie (gold) est-elle déterminante ?
 
-Enfin, nous cherchons à synthétiser les résultats via un modèle prédictif.
-
-Exemples de questions :
-
-- Peut-on prédire la victoire à partir des variables disponibles ?
+Nous comparons les niveaux de gold entre joueurs gagnants et perdants afin d’évaluer l’importance de l’avantage économique individuel.
 
 ---
 
-### Limites du dataset
+### Q4 : Le CS est-il un facteur clé de performance ?
 
-- Données issues uniquement de joueurs haut niveau  
-- Analyse centrée sur la performance individuelle  
-- Absence de données macro (draft, stratégie, timeline)  
+Nous analysons la distribution du CS afin de mesurer l’impact du farming sur la réussite des joueurs.
 
 ---
 
-## Conclusion de la proposition
+### Q5 : Les performances sont-elles homogènes ou très variables ?
 
-Ce projet vise à exploiter un jeu de données réel afin de mettre en œuvre les compétences acquises en visualisation et analyse de données avec R.
+Nous utilisons des density plots pour analyser la dispersion des performances et identifier la variabilité entre joueurs.
 
-L’approche repose sur une démarche :
-- exploratoire  
-- progressive  
-- critique  
+---
 
-L’objectif est de produire une analyse cohérente, argumentée et pertinente à partir des données disponibles.
+### Q6 : Certains rôles ont-ils un avantage structurel ?
+
+Nous comparons les taux de victoire moyens par rôle afin d’identifier d’éventuels déséquilibres.
+
+---
+
+### Q7 : Les styles de jeu diffèrent-ils selon les rôles ?
+
+Nous analysons les statistiques de combat selon les rôles afin de mettre en évidence des profils distincts.
+
+---
+
+## Axe 2 — La stratégie et le jeu professionnel
+
+Le jeu professionnel repose sur une coordination d’équipe et une stratégie avancée. Nous analysons ici les facteurs macro influençant la victoire.
+
+### Q8 : L’early game est-il déterminant ?
+
+Nous analysons la variable `goldat10` afin d’évaluer si un bon début de partie est associé à la victoire.
+
+---
+
+### Q9 : L’écart de gold est-il plus pertinent que la valeur brute ?
+
+Nous étudions `golddiffat10` afin de mesurer l’importance de l’avantage relatif entre équipes.
+
+---
+
+### Q10 : Les objectifs influencent-ils fortement la victoire ?
+
+Nous analysons les dragons et barons afin d’évaluer leur rôle stratégique dans le jeu.
+
+---
+
+### Q11 : La vision est-elle un facteur clé ?
+
+Nous comparons les scores de vision entre équipes gagnantes et perdantes afin d’évaluer le contrôle de la carte.
+
+---
+
+### Q12 : Existe-t-il des joueurs particulièrement performants ?
+
+Nous analysons les performances individuelles afin d’identifier des joueurs dominants ou réguliers.
+
+---
+
+### Q13 : Certaines équipes dominent-elles statistiquement ?
+
+Nous comparons les performances globales des équipes afin d’identifier d’éventuelles dominations.
+
+---
+
+### Q14 : Les styles de jeu diffèrent-ils selon les équipes ?
+
+Nous analysons les statistiques (kills, objectifs, vision) afin d’identifier des stratégies distinctes.
+
+---
+
+## Axe 3 — Comparaison soloQ vs scène professionnelle
+
+Nous comparons les deux environnements afin d’identifier leurs différences fondamentales.
+
+### Q15 : Le niveau de performance diffère-t-il ?
+
+Nous comparons les distributions de KDA entre soloQ et pro.
+
+---
+
+### Q16 : Les joueurs professionnels meurent-ils moins ?
+
+Nous analysons les `deaths` afin d’évaluer la gestion du risque.
+
+---
+
+### Q17 : Les performances sont-elles plus stables en pro ?
+
+Nous comparons la dispersion des performances afin d’évaluer la régularité.
+
+---
+
+### Q18 : L’impact des kills est-il différent ?
+
+Nous analysons l’influence des kills sur la victoire dans les deux contextes.
+
+---
+
+### Q19 : Le gold est-il plus déterminant en soloQ ?
+
+Nous comparons les écarts économiques entre gagnants et perdants.
+
+---
+
+### Q20 : Le jeu pro repose-t-il davantage sur la stratégie ?
+
+Nous analysons l’importance des objectifs et de la vision.
+
+---
+
+## L’application Shiny
+
+L’application Shiny permettra une exploration interactive des données.
+
+Elle sera organisée en plusieurs onglets :
+
+- SoloQ → performance individuelle  
+- Pro → stratégie et analyse par équipe/joueur  
+- Comparaison → différences entre environnements  
+
+Un onglet supplémentaire permettra une analyse géographique des ligues via une carte du monde.
+
+---
+
+## Considérations méthodologiques
+
+- biais de sélection (soloQ haut niveau)  
+- différences structurelles entre soloQ et pro  
+- absence de certaines variables (draft, communication)  
+
+---
+
+## Conclusion
+
+Ce projet met en évidence deux logiques :
+
+- soloQ → performance individuelle  
+- pro → stratégie collective  
+
+L’analyse vise à proposer une vision claire, structurée et critique des facteurs de performance.
