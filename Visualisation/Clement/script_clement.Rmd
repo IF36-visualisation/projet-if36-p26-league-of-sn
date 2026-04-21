@@ -1,0 +1,246 @@
+---
+title: "Analyse de la Vision : Scène Professionnelle vs Ranked"
+author: "Clément MENAUCOURT"
+date: "2026-04-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+```
+
+```{r data, include=FALSE}
+df_pro <- read_delim("../../data/lol_pro_scene_dataset.csv", delim = ";", show_col_types = FALSE) %>%
+  rename(wards = wardsplaced)
+
+df_ranked <- read_delim("../../data/lol_ranked_dataset.csv", delim = ";", show_col_types = FALSE) %>%
+  rename(wards = wards_placed)
+```
+
+# 1. L'importance donnée à la vision entre les professionnels et la soloQ est-elle similaire ?
+
+## Problématique
+Nous cherchons à savoir si l'importance accordée à la vision varie entre la scène professionnelle et les parties classées, et si cette différence dépend du rôle.
+
+## Méthode
+Nous utilisons un barchart afin de comparer la moyenne de wards posées selon :  
+- le rôle  
+- le type de parties (Pro vs SoloQ)
+
+## Visualisation 
+
+```{r graphique 1}
+vision_pro <- df_pro %>%
+  group_by(role) %>%
+  summarise(avg_wards = mean(wards, na.rm = TRUE)) %>%
+  mutate(Source = "Pro")
+
+vision_ranked <- df_ranked %>%
+  group_by(role) %>%
+  summarise(avg_wards = mean(wards, na.rm = TRUE)) %>%
+  mutate(Source = "Ranked")
+
+df_vision <- bind_rows(vision_pro, vision_ranked) %>%
+  filter(!is.na(role)) %>%
+  mutate(role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY")))
+
+ggplot(df_vision, aes(x = role, y = avg_wards, fill = Source)) +
+  geom_bar(stat = "identity", position = "dodge", color = "white") +
+  geom_text(aes(label = round(avg_wards, 1)),
+            position = position_dodge(width = 0.9),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  labs(
+    title = "Investissement dans la Vision : Pros vs Ranked",
+    subtitle = "Moyenne de wards posées par rôle",
+    x = "Rôle",
+    y = "Nombre moyen de wards",
+    fill = "Catégorie de joueur"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16)
+  )
+```
+
+## Interprétation
+Les supports concentrent l’essentiel de la vision dans les deux cas, avec une intensité plus élevée en partie professionnelle.
+
+Les autres rôles présentent également un niveau de vision plus élevé chez les pros, ce qui suggère une responsabilité plus collective du contrôle de la carte.
+
+Cependant, ces résultats doivent être nuancés :
+- Une partie plus longue permet mécaniquement de poser plus de wards.
+- En milieu professionnel, la vision est une responsabilité coordonnée, alors qu’en ranked elle reste plus individuelle.  
+
+Ainsi, la vision apparaît comme un indicateur de structuration stratégique du jeu.
+
+---
+
+# 2. L’investissement en vision garantit-il la victoire ?
+
+## Problématique
+Existe-t-il une relation entre le nombre de wards posées et les chances de victoire ?
+
+## Méthode
+Nous regroupons les données en tranches de nombre de wards posées afin de lisser les variations et observer une tendance globale.
+
+## Visualisation
+```{r graphique 2}
+vision_win_pro <- df_pro %>%
+  select(win, wards) %>%
+  mutate(Source = "Pro")
+
+vision_win_ranked <- df_ranked %>%
+  select(win, wards) %>%
+  mutate(Source = "Ranked")
+
+df_corr <- bind_rows(vision_win_pro, vision_win_ranked) %>%
+  filter(wards <= 60) %>%
+  mutate(ward_interval = cut(wards, breaks = seq(0, 60, by = 10))) %>%
+  filter(!is.na(ward_interval)) %>%
+  group_by(Source, ward_interval) %>%
+  summarise(win_rate = mean(win, na.rm = TRUE) * 100, .groups = "drop")
+
+ggplot(df_corr, aes(x = ward_interval, y = win_rate, fill = Source)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_hline(yintercept = 50, linetype = "dashed", alpha = 0.5) +
+  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  labs(
+    title = "Taux de Victoire selon l'effort de vision",
+    x = "Nombre de wards",
+    y = "Taux de Victoire (%)"
+  ) +
+  theme_minimal()
+```
+
+## Interprétation
+Une tendance positive semble apparaître pour la ranked : davantage de vision est associé à un meilleur taux de victoire.
+
+Cependant, cette relation est probablement aussi inversée, les équipes en position de gagner contrôlent davantage la carte, et elles peuvent donc poser plus de wards.  
+
+Ainsi, la vision est à la fois une cause et une conséquence de la victoire.
+
+---
+
+# 3. Le "Vision Gap" dépend-il de la durée du match ?
+
+## Méthode
+Nous analysons la relation entre durée de partie et nombre de wards, puis nous introduisons une métrique normalisée : les **wards par minute (WPM)**.
+
+## Visualisation
+
+```{r graphique 3}
+df_time <- bind_rows(
+  df_pro %>% mutate(Source = "Pro"),
+  df_ranked %>% mutate(Source = "Ranked")
+) %>%
+  mutate(duration_min = game_duration / 60) %>%
+  filter(duration_min > 15 & duration_min < 50)
+
+ggplot(df_time, aes(x = duration_min, y = wards, color = Source)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "gam", linewidth = 1.2) +
+  scale_color_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  labs(
+    title = "Vision selon la durée de la partie",
+    x = "Durée (minutes)",
+    y = "Nombre de wards"
+  ) +
+  theme_minimal()
+```
+
+On se rend compte que 2 nuages de points se distinguent, il s'agit des supports qui posent plus de wards, on les sépare donc pour un soucis de lisibilité.
+
+```{r graphique 4}
+df_vision_ext <- bind_rows(
+    df_pro %>% mutate(Source = "Pro"),
+    df_ranked %>% mutate(Source = "Ranked")
+  ) %>%
+  mutate(
+    duration_min = game_duration / 60,
+    wpm = wards / duration_min, 
+    is_support = ifelse(role == "UTILITY", "Supports", "Autres Rôles")
+  ) %>%
+  filter(duration_min > 15 & duration_min < 50)
+
+ggplot(df_vision_ext, aes(x = duration_min, y = wards, color = Source)) +
+  geom_point(alpha = 0.1, size = 1) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1.2) +
+  facet_wrap(~is_support, scales = "free_y") + 
+  scale_color_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  labs(
+    title = "Vision selon la durée de la partie en isolant les supports",
+    x = "Durée (minutes)",
+    y = "Nombre de wards"
+  ) +
+  theme_minimal()
+```
+
+## Interprétation
+La croissance de la vision semble plus rapide chez les professionnels.
+
+Cela suggère qu’ils augmentent leur production de vision à mesure que les enjeux de la partie augmentent, contrairement aux joueurs Ranked dont la progression est plus modérée.
+
+---
+
+# 4. L’intensité de vision est-elle réellement plus élevée chez les professionnels ?
+
+## Problématique
+Les professionnels posent plus de wards en valeur absolue, mais cette différence est-elle toujours présente lorsque l’on prend en compte la durée des parties ?
+
+## Méthode
+Nous introduisons une métrique normalisée : les wards par minute (WPM), afin de comparer l’intensité de vision indépendamment de la durée des matchs.
+
+## Visualisation
+
+```{r graphique 5}
+df_vision_ext <- bind_rows(
+  df_pro %>% mutate(Source = "Pro"),
+  df_ranked %>% mutate(Source = "Ranked")
+) %>%
+  mutate(
+    duration_min = game_duration / 60,
+    wpm = wards / duration_min,
+    is_support = ifelse(role == "UTILITY", "Supports", "Autres rôles")
+  ) %>%
+  filter(duration_min > 15 & duration_min < 50)
+
+ggplot(df_vision_ext, aes(x = role, y = wpm, fill = Source)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  labs(
+    title = "Intensité de vision (WPM)",
+    x = "Rôle",
+    y = "Wards par minute"
+  ) +
+  theme_minimal()
+```
+
+## Interprétation
+
+Les professionnels présentent un WPM globalement plus élevé, en particulier sur le rôle de Support.
+
+Cependant, la dispersion reste importante dans les deux environnements, avec de nombreux outliers, notamment chez les pros. Cela suggère que l’intensité de vision varie fortement selon le contexte de la partie (durée, domination, stratégie).
+
+Ainsi, si les joueurs professionnels maintiennent en moyenne une intensité de vision plus élevée, celle-ci n’est pas uniforme et dépend des situations de jeu.
+
+---
+
+# Conclusion générale
+
+La vision constitue un marqueur clair de professionnalisation du jeu.
+
+Cependant :  
+- son lien avec la victoire reste indirect  
+- elle dépend fortement du contexte de la partie  
+
+Le véritable écart entre Pros et Ranked ne réside pas uniquement dans la quantité de vision, mais dans :  
+- sa régularité  
+- sa coordination  
+- son intégration dans une stratégie collective  
+
+Ainsi, la vision n’est pas seulement une compétence technique, mais un indicateur de maturité stratégique du jeu.
