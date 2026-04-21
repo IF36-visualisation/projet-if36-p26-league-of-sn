@@ -1,0 +1,209 @@
+---
+title: "Visualisation - Q7"
+author: "Yevhenii"
+date: "2026-04-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+df_ranked <- read_delim(
+  "../../data/lol_ranked_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(
+    role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"))
+  )
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 11, color = "gray30"),
+      axis.title = element_text(face = "bold"),
+      strip.text = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+)
+```
+
+Question : Les styles de jeu diffèrent-ils selon les rôles ?
+
+#### Méthode
+
+Pour répondre à cette question, nous utilisons trois visualisations complémentaires car elles permettent d'étudier successivement le profil moyen de combat, la distribution du KDA, puis l'équilibre entre dégâts, vision et farming selon chaque rôle.
+
+#### Visualisation 1 - Profil moyen de combat
+
+```{r}
+combat_role <- df_ranked %>%
+  group_by(role) %>%
+  summarise(
+    kills = mean(kills, na.rm = TRUE),
+    deaths = mean(deaths, na.rm = TRUE),
+    assists = mean(assists, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(kills, deaths, assists),
+    names_to = "statistique",
+    values_to = "moyenne"
+  )
+
+ggplot(combat_role, aes(x = role, y = moyenne, fill = statistique)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.68, color = "white") +
+  geom_text(
+    aes(label = round(moyenne, 1)),
+    position = position_dodge(width = 0.75),
+    vjust = -0.35,
+    size = 3.2
+  ) +
+  labs(
+    title = "Profil de combat moyen selon le rôle",
+    subtitle = "Comparaison des kills, deaths et assists moyens par partie",
+    x = "Rôle",
+    y = "Moyenne par partie",
+    fill = "Statistique"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "kills" = "#D1495B",
+      "deaths" = "#4C78A8",
+      "assists" = "#3CA370"
+    ),
+    labels = c("kills" = "Kills", "deaths" = "Deaths", "assists" = "Assists")
+  ) +
+  expand_limits(y = max(combat_role$moyenne) + 2)
+```
+
+#### Interprétation
+
+On observe que les `UTILITY` se distinguent par un nombre d'assists très supérieur aux autres rôles, alors que les `BOTTOM` et `JUNGLE` génèrent davantage de kills en moyenne.
+
+Cela suggère une spécialisation nette des rôles dans les combats : certains sécurisent les éliminations, tandis que d'autres créent surtout les conditions collectives de ces éliminations.
+
+Cependant, cette lecture repose sur des moyennes et ne montre pas encore la dispersion des performances individuelles.
+
+#### Visualisation 2 - Distribution du KDA
+
+```{r}
+ggplot(df_ranked, aes(x = role, y = kda, fill = role)) +
+  geom_boxplot(outlier.alpha = 0.15, show.legend = FALSE, width = 0.62, color = "gray25") +
+  stat_summary(fun = median, geom = "point", size = 2.2, color = "black") +
+  coord_cartesian(ylim = c(0, 10)) +
+  labs(
+    title = "Distribution du KDA selon le rôle",
+    subtitle = "Le KDA permet de comparer l'efficacité globale et la stabilité relative des rôles",
+    x = "Rôle",
+    y = "KDA"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "TOP" = "#8C6D5A",
+      "JUNGLE" = "#5B8E7D",
+      "MIDDLE" = "#6C5B7B",
+      "BOTTOM" = "#D17B49",
+      "UTILITY" = "#4C78A8"
+    )
+  )
+```
+
+#### Interprétation
+
+On observe que les `JUNGLE` et `UTILITY` affichent globalement des KDA plus élevés, tandis que les `TOP` apparaissent plus exposés avec une distribution plus basse.
+
+Cela suggère que certains rôles disposent d'un style de contribution plus sécurisé ou plus collectif, ce qui améliore leur ratio global même sans accumuler autant de kills bruts qu'un carry.
+
+Cependant, le KDA reste une métrique partielle : un support très impliqué ou un top laner qui absorbe la pression peuvent avoir une contribution utile que ce ratio ne reflète qu'imparfaitement.
+
+#### Visualisation 3 - Profils standardisés des rôles
+
+```{r}
+profil_roles <- df_ranked %>%
+  group_by(role) %>%
+  summarise(
+    kills = mean(kills, na.rm = TRUE),
+    assists = mean(assists, na.rm = TRUE),
+    deaths = mean(deaths, na.rm = TRUE),
+    cs = mean(cs, na.rm = TRUE),
+    damage = mean(damage, na.rm = TRUE),
+    vision = mean(vision, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(kills, assists, deaths, cs, damage, vision),
+    names_to = "indicateur",
+    values_to = "valeur_reelle"
+  ) %>%
+  mutate(
+    indicateur = recode(
+      indicateur,
+      kills = "Kills",
+      assists = "Assists",
+      deaths = "Deaths",
+      cs = "Farming",
+      damage = "Dégâts",
+      vision = "Vision"
+    )
+  ) %>%
+  group_by(indicateur) %>%
+  mutate(
+    score_standardise = as.numeric(scale(valeur_reelle))
+  ) %>%
+  ungroup() %>%
+  mutate(
+    role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY")),
+    indicateur = factor(
+      indicateur,
+      levels = c("Kills", "Assists", "Deaths", "Farming", "Dégâts", "Vision")
+    )
+  )
+
+ggplot(profil_roles, aes(x = indicateur, y = score_standardise, group = role, color = role)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray55", linewidth = 0.5) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.8) +
+  scale_color_manual(
+    values = c(
+      "TOP" = "#8C6D5A",
+      "JUNGLE" = "#5B8E7D",
+      "MIDDLE" = "#6C5B7B",
+      "BOTTOM" = "#D17B49",
+      "UTILITY" = "#4C78A8"
+    )
+  ) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1)) +
+  labs(
+    title = "Profils standardisés des rôles",
+    subtitle = "Chaque point mesure l'écart à la moyenne du dataset pour une métrique donnée",
+    x = NULL,
+    y = "Score standardisé",
+    color = "Rôle"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  ) +
+  guides(
+    color = guide_legend(nrow = 1)
+  )
+```
+
+#### Interprétation
+
+On observe que chaque rôle dessine une trajectoire propre : les `UTILITY` sont très au-dessus de la moyenne sur les assists et la vision mais très en dessous sur le farming et les dégâts, alors que les `BOTTOM` se distinguent surtout par leur avance en farming et en dégâts.
+
+Cela suggère que les rôles ne se différencient pas seulement par une statistique isolée, mais par une combinaison cohérente de forces et de faiblesses sur plusieurs dimensions du jeu.
+
+Cependant, cette visualisation repose sur des scores standardisés : elle montre les écarts relatifs à la moyenne du dataset, mais elle ne remplace pas la lecture des valeurs absolues présentées dans les deux premières figures.
+
+Ainsi, cette synthèse confirme que chaque rôle correspond à un style de jeu identifiable, avec une signature statistique spécifique.
