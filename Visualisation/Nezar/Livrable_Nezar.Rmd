@@ -1,0 +1,207 @@
+---
+title: "League of SN – Premier livrable"
+author: "Nezar Fagouri"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(scales)
+
+pro <- read_csv("data/pro_final.csv") |>
+  mutate(
+    resultat = factor(win, levels = c(0, 1), labels = c("Défaite", "Victoire")),
+    role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"))
+  )
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+```
+
+## Question
+
+Dans quelle mesure l’avantage en gold à 10 minutes influence-t-il l’issue de la partie, et cet impact varie-t-il selon le rôle du joueur ?
+
+
+## Méthode
+
+Cette analyse vise à dépasser une approche simpliste basée uniquement sur l’avantage en gold, en étudiant plusieurs dimensions du jeu professionnel. Nous considérons trois axes principaux : l’économie (gold), l’impact en combat (kills, assists, dégâts) et la vision de la carte (vision score).
+
+Dans un premier temps, nous comparons les distributions de ces variables entre joueurs victorieux et vaincus afin d’identifier les différences structurelles.
+
+Dans un second temps, nous analysons l’évolution de la probabilité de victoire en fonction de certaines variables clés.
+
+Enfin, nous explorons les interactions entre ces facteurs pour comprendre si certains joueurs peuvent compenser un désavantage économique par d’autres performances.
+
+
+## Visualisation 1 – Analyse de la distribution de l’écart de gold à 10 minutes
+
+```{r}
+ggplot(pro, aes(x = golddiffat10, color = resultat)) +
+  stat_ecdf(geom = "step", linewidth = 1.1) +
+  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.7) +
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1)
+  ) +
+  scale_color_manual(values = c("Défaite" = "#F05A5A", "Victoire" = "#08A6B5")) +
+  labs(
+    title = "Répartition cumulative de l’écart de gold à 10 minutes",
+    subtitle = "Comparaison entre joueurs victorieux et vaincus",
+    x = "Écart de gold à 10 minutes\n(par rapport à l’adversaire direct)",
+    y = "Pourcentage cumulé de joueurs",
+    color = "Issue de la partie",
+    caption = "Lecture : à x = 0, on lit la proportion de joueurs ayant un écart de gold inférieur ou égal à 0."
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 10),
+    axis.title.x = element_text(size = 10, margin = margin(t = 8)),
+    axis.title.y = element_text(size = 10, margin = margin(r = 8)),
+    axis.text = element_text(size = 9),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.caption = element_text(size = 9, hjust = 0),
+    plot.margin = margin(10, 15, 10, 10)
+  )
+```
+
+## Interprétation
+
+Cette visualisation met en évidence la répartition de l’écart de gold à 10 minutes entre les joueurs victorieux et vaincus.
+
+On observe que la distribution des joueurs victorieux est globalement décalée vers la droite par rapport à celle des joueurs vaincus. Cela signifie que les joueurs qui gagnent leur partie disposent, en moyenne, d’un avantage économique plus important dès les premières minutes du jeu.
+
+À l’inverse, la distribution des joueurs vaincus est davantage concentrée du côté négatif, ce qui indique qu’ils subissent plus souvent un désavantage en gold face à leur adversaire direct.
+
+On remarque également que la majorité des joueurs, qu’ils gagnent ou perdent, se situe autour d’un écart de gold proche de 0. Cela montre que les écarts extrêmes restent relativement rares, mais que même de faibles différences peuvent déjà influencer l’issue de la partie.
+
+Ainsi, cette première analyse suggère qu’un avantage économique précoce est un facteur déterminant, même s’il n’est pas systématiquement décisif.
+
+\newpage
+
+## Visualisation 2 — Relation entre l’écart de gold à 10 minutes et la victoire
+
+```{r}
+pro_bins <- pro |>
+  filter(!is.na(golddiffat10)) |>
+  mutate(
+    tranche_gold = cut(
+      golddiffat10,
+      breaks = c(-Inf, -2500, -2000, -1500, -1000, -500, 0, 500, 1000, 1500, 2000, 2500, Inf),
+      labels = c(
+        "≤ -2500",
+        "-2500 à -2000",
+        "-2000 à -1500",
+        "-1500 à -1000",
+        "-1000 à -500",
+        "-500 à 0",
+        "0 à 500",
+        "500 à 1000",
+        "1000 à 1500",
+        "1500 à 2000",
+        "2000 à 2500",
+        "≥ 2500"
+      ),
+      include.lowest = TRUE,
+      right = TRUE
+    )
+  ) |>
+  group_by(tranche_gold) |>
+  summarise(
+    winrate = mean(win, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+ggplot(pro_bins, aes(x = tranche_gold, y = winrate)) +
+  geom_col(fill = "#2C7BE5", alpha = 0.85) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", linewidth = 0.7, color = "gray40") +
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    limits = c(0, 1)
+  ) +
+  labs(
+    title = "Taux de victoire selon l’écart de gold à 10 minutes",
+    subtitle = "Chaque barre correspond à une tranche de 500 gold",
+    x = "Tranches d’écart de gold à 10 minutes",
+    y = "Taux de victoire",
+    caption = "Lecture : un écart positif signifie que le joueur possède plus de gold que son adversaire direct au même rôle."
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 10),
+    axis.title.x = element_text(size = 10, margin = margin(t = 8)),
+    axis.title.y = element_text(size = 10, margin = margin(r = 8)),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 9),
+    plot.caption = element_text(size = 9, hjust = 0),
+    plot.margin = margin(10, 15, 10, 10)
+  )
+```
+
+## Interprétation
+
+Cette visualisation met en évidence la relation entre l’écart de gold à 10 minutes et la probabilité de victoire.
+
+On observe une tendance clairement croissante : plus l’écart de gold est positif, plus le taux de victoire augmente. À l’inverse, un désavantage en gold est associé à une probabilité de victoire nettement plus faible.
+
+Autour de 0, le taux de victoire est proche de 50 %, ce qui correspond à une situation d’équilibre entre les deux joueurs. En revanche, dès que l’écart dépasse certaines valeurs (positives ou négatives), la probabilité de victoire s’éloigne significativement de cet équilibre.
+
+Cela montre que l’avantage économique en début de partie joue un rôle structurant dans le déroulement du match. Un joueur en avance en gold dispose généralement de meilleures ressources (objets, puissance), ce qui augmente ses chances de prendre l’avantage sur la suite de la partie.
+
+Cette relation n’est cependant pas parfaitement déterministe : même avec un désavantage initial, certaines parties restent gagnables, ce qui souligne la complexité stratégique du jeu.
+\newpage
+
+## Visualisation 3 – Influence du rôle sur l’impact de l’écart de gold
+```{r}
+ggplot(pro, aes(x = resultat, y = golddiffat10, fill = resultat)) +
+  geom_violin(alpha = 0.30, trim = FALSE, width = 0.9, color = "gray40") +
+  geom_boxplot(width = 0.14, outlier.alpha = 0.05, color = "black", linewidth = 0.4) +
+  stat_summary(fun = median, geom = "crossbar", width = 0.30, color = "black", linewidth = 0.35) +
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 0.5, color = "black") +
+  facet_wrap(~ role, ncol = 2) +
+  scale_fill_manual(values = c("Défaite" = "#F05A5A", "Victoire" = "#08A6B5"), name = "Issue de la partie") +
+  coord_cartesian(ylim = c(-2500, 2500)) +
+  labs(title = "Écart de gold à 10 minutes selon le rôle",
+       subtitle = "Comparaison entre joueurs victorieux et vaincus",
+       x = NULL,
+       y = "Écart de gold à 10 minutes",
+       caption = "La ligne noire fine représente la médiane ; la ligne horizontale en pointillés indique une égalité parfaite.") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", size = 13),
+        plot.subtitle = element_text(size = 10),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 9),
+        axis.title.y = element_text(size = 10, margin = margin(r = 8)),
+        strip.text = element_text(size = 11, face = "bold"),
+        legend.position = "right",
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 9),
+        panel.spacing = unit(1.5, "lines"),
+        plot.caption = element_text(size = 8.5, hjust = 0),
+        plot.margin = margin(t = 10, r = 20, b = 30, l = 10))
+```
+
+## Interprétation
+
+Cette visualisation permet d’analyser comment l’impact de l’écart de gold à 10 minutes varie selon le rôle du joueur.
+
+On observe que, pour l’ensemble des rôles, les distributions associées aux victoires sont systématiquement décalées vers des valeurs plus élevées que celles associées aux défaites. Cela confirme que l’avantage en gold est un facteur important, quel que soit le rôle considéré.
+
+Cependant, l’ampleur de cet effet varie selon les rôles. Certains rôles, comme le MID ou le BOTTOM, semblent présenter des écarts plus marqués entre victoires et défaites, suggérant que l’avantage économique y est particulièrement déterminant. À l’inverse, d’autres rôles comme SUPPORT (UTILITY) présentent des distributions plus resserrées, ce qui peut indiquer une dépendance moindre au gold individuel.
+
+La présence de la médiane (ligne noire) permet également de constater que, pour chaque rôle, les joueurs victorieux disposent en moyenne d’un avantage en gold par rapport à leurs adversaires directs.
+
+Ainsi, cette visualisation met en évidence que l’impact du gold n’est pas uniforme dans le jeu : il dépend du rôle occupé, et donc de la manière dont chaque rôle contribue à la victoire collective.
+  
