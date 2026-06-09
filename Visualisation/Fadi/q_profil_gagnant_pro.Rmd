@@ -1,0 +1,229 @@
+---
+title: "League of SN"
+author: "Fadi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Q4 — Quel est le profil statistique d'un joueur gagnant en pro ?
+
+En pro, plusieurs variables peuvent influencer la victoire : les kills, les morts,
+le gold, la vision, la participation aux kills... Mais lesquelles sont vraiment
+discriminantes ? Et est-ce qu'un joueur gagnant a un profil clairement différent
+d'un joueur perdant ?
+
+Pour répondre à cette question on utilise trois visualisations : un radar chart
+pour comparer les profils visuellement comme une carte FIFA, un tableau avec les
+vraies valeurs pour interpréter les chiffres, et un graphique de corrélation pour
+identifier les variables les plus liées à la victoire.
+
+```{r chargement}
+library(tidyverse)
+library(knitr)
+library(fmsb)
+
+pro <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_pro_scene_dataset.csv",
+                  delim          = ";",
+                  locale         = locale(decimal_mark = ","),
+                  show_col_types = FALSE) %>%
+  mutate(win = as.logical(as.integer(win)))
+```
+
+```{r preparation}
+pro_clean <- pro %>%
+  select(win, kills, deaths, kda, gold, cs, vision,
+         kill_participation, golddiffat10) %>%
+  filter(!is.na(golddiffat10)) %>%
+  mutate(win = as.logical(win))
+
+profil_win <- pro_clean %>%
+  filter(win == TRUE) %>%
+  summarise(
+    Kills        = mean(kills, na.rm = TRUE),
+    KDA          = mean(kda, na.rm = TRUE),
+    Gold         = mean(gold, na.rm = TRUE),
+    CS           = mean(cs, na.rm = TRUE),
+    Vision       = mean(vision, na.rm = TRUE),
+    `Kill Part.` = mean(kill_participation, na.rm = TRUE) * 100
+  )
+
+profil_lose <- pro_clean %>%
+  filter(win == FALSE) %>%
+  summarise(
+    Kills        = mean(kills, na.rm = TRUE),
+    KDA          = mean(kda, na.rm = TRUE),
+    Gold         = mean(gold, na.rm = TRUE),
+    CS           = mean(cs, na.rm = TRUE),
+    Vision       = mean(vision, na.rm = TRUE),
+    `Kill Part.` = mean(kill_participation, na.rm = TRUE) * 100
+  )
+```
+
+```{r radar-chart, fig.width=9, fig.height=7}
+normalize_100 <- function(x, min_val, max_val) {
+  round((x - min_val) / (max_val - min_val) * 100, 1)
+}
+
+refs <- pro_clean %>%
+  summarise(
+    Kills_min  = quantile(kills, 0.05, na.rm = TRUE),
+    Kills_max  = quantile(kills, 0.95, na.rm = TRUE),
+    KDA_min    = quantile(kda, 0.05, na.rm = TRUE),
+    KDA_max    = quantile(kda, 0.95, na.rm = TRUE),
+    Gold_min   = quantile(gold, 0.05, na.rm = TRUE),
+    Gold_max   = quantile(gold, 0.95, na.rm = TRUE),
+    CS_min     = quantile(cs, 0.05, na.rm = TRUE),
+    CS_max     = quantile(cs, 0.95, na.rm = TRUE),
+    Vision_min = quantile(vision, 0.05, na.rm = TRUE),
+    Vision_max = quantile(vision, 0.95, na.rm = TRUE),
+    KP_min     = quantile(kill_participation, 0.05, na.rm = TRUE) * 100,
+    KP_max     = quantile(kill_participation, 0.95, na.rm = TRUE) * 100
+  )
+
+radar_data <- data.frame(
+  Kills        = c(100, 0,
+    normalize_100(profil_win$Kills,        refs$Kills_min,  refs$Kills_max),
+    normalize_100(profil_lose$Kills,       refs$Kills_min,  refs$Kills_max)),
+  KDA          = c(100, 0,
+    normalize_100(profil_win$KDA,          refs$KDA_min,    refs$KDA_max),
+    normalize_100(profil_lose$KDA,         refs$KDA_min,    refs$KDA_max)),
+  Gold         = c(100, 0,
+    normalize_100(profil_win$Gold,         refs$Gold_min,   refs$Gold_max),
+    normalize_100(profil_lose$Gold,        refs$Gold_min,   refs$Gold_max)),
+  CS           = c(100, 0,
+    normalize_100(profil_win$CS,           refs$CS_min,     refs$CS_max),
+    normalize_100(profil_lose$CS,          refs$CS_min,     refs$CS_max)),
+  Vision       = c(100, 0,
+    normalize_100(profil_win$Vision,       refs$Vision_min, refs$Vision_max),
+    normalize_100(profil_lose$Vision,      refs$Vision_min, refs$Vision_max)),
+  `Kill.Part.` = c(100, 0,
+    normalize_100(profil_win$`Kill Part.`, refs$KP_min,     refs$KP_max),
+    normalize_100(profil_lose$`Kill Part.`,refs$KP_min,     refs$KP_max))
+)
+
+rownames(radar_data) <- c("max", "min", "Victoire", "Défaite")
+
+col_win  <- "#2ecc71"
+col_lose <- "#e74c3c"
+
+radarchart(
+  radar_data,
+  axistype    = 1,
+  pcol        = c(col_win, col_lose),
+  pfcol       = c(
+    scales::alpha(col_win,  0.3),
+    scales::alpha(col_lose, 0.3)
+  ),
+  plwd        = 2,
+  cglcol      = "grey80",
+  cglty       = 1,
+  axislabcol  = "grey40",
+  caxislabels = c("0", "25", "50", "75", "100"),
+  vlcex       = 0.9,
+  title       = "Q4 — Profil statistique : Gagnants vs Perdants (Pro)"
+)
+
+legend(
+  x      = 1.3,
+  y      = 1.3,
+  legend = c("Victoire", "Défaite"),
+  col    = c(col_win, col_lose),
+  lty    = 1,
+  lwd    = 2,
+  bty    = "n"
+)
+```
+
+Le radar chart montre visuellement que la surface verte (gagnants) est plus grande
+que la rouge (perdants) sur presque toutes les dimensions. Le KDA et les kills
+sont les variables où l'écart est le plus marqué. En revanche le CS et la Vision
+ont des surfaces presque identiques ces variables ne semblent pas discriminantes.
+
+```{r tableau-vraies-valeurs}
+data.frame(
+  Variable = c("Kills", "KDA", "Gold", "CS", "Vision", "Kill Part. (%)"),
+  Victoire = c(
+    round(profil_win$Kills, 1),
+    round(profil_win$KDA, 2),
+    round(profil_win$Gold, 0),
+    round(profil_win$CS, 1),
+    round(profil_win$Vision, 1),
+    round(profil_win$`Kill Part.`, 1)
+  ),
+  Defaite = c(
+    round(profil_lose$Kills, 1),
+    round(profil_lose$KDA, 2),
+    round(profil_lose$Gold, 0),
+    round(profil_lose$CS, 1),
+    round(profil_lose$Vision, 1),
+    round(profil_lose$`Kill Part.`, 1)
+  )
+) %>%
+  rename(`Défaite` = Defaite) %>%
+  kable()
+```
+
+Le tableau confirme avec les vraies valeurs ce qu'on voit dans le radar. Les
+gagnants font en moyenne 4.4 kills contre 2.1 pour les perdants, et un KDA de
+8.6 contre 1.8 c'est un écart énorme. Le Gold est aussi plus élevé chez les
+gagnants (13 537 vs 11 394). En revanche le CS (226 vs 213) et la Vision (59 vs
+55) sont proches — ces variables ne permettent pas de distinguer les deux groupes.
+
+```{r correlation, fig.width=8, fig.height=5}
+cor_data <- pro_clean %>%
+  mutate(win_num = as.integer(win)) %>%
+  select(win_num, kills, deaths, kda, gold, cs,
+         vision, kill_participation, golddiffat10) %>%
+  cor(use = "complete.obs")
+
+cor_win <- data.frame(
+  variable    = rownames(cor_data),
+  correlation = cor_data[, "win_num"]
+) %>%
+  filter(variable != "win_num") %>%
+  mutate(
+    variable = recode(variable,
+      kills              = "Kills",
+      deaths             = "Deaths",
+      kda                = "KDA",
+      gold               = "Gold",
+      cs                 = "CS",
+      vision             = "Vision",
+      kill_participation = "Kill Part.",
+      golddiffat10       = "Gold diff à 10"
+    )
+  ) %>%
+  arrange(desc(abs(correlation)))
+
+ggplot(cor_win, aes(x = reorder(variable, correlation),
+                    y = correlation, fill = correlation)) +
+  geom_col(width = 0.6) +
+  geom_text(aes(label = round(correlation, 2)),
+            hjust = ifelse(cor_win$correlation > 0, -0.2, 1.2),
+            size = 3.5) +
+  geom_hline(yintercept = 0, color = "grey40") +
+  coord_flip() +
+  scale_fill_gradient2(low = "#e74c3c", mid = "white",
+                       high = "#2ecc71", midpoint = 0) +
+  scale_y_continuous(limits = c(-0.6, 0.6)) +
+  labs(
+    title    = "Q4 — Corrélation des variables avec la victoire (Pro)",
+    subtitle = "Plus la valeur est élevée, plus la variable est liée à la victoire",
+    x        = NULL,
+    y        = "Corrélation avec la victoire",
+    caption  = "Source : Oracle's Elixir"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+Le graphique de corrélation confirme ce qu'on a vu : le KDA et les kills sont
+les variables les plus corrélées positivement avec la victoire, tandis que les
+deaths sont fortement négativement corrélées. Le gold diff à 10 est aussi
+important, ce qui montre que l'avantage économique précoce joue un rôle
+structurant. En revanche la Vision et le CS ont une corrélation très faible
+ces variables ne permettent pas seules de prédire la victoire.
