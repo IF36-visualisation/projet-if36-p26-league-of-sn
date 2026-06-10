@@ -1,0 +1,75 @@
+## Q6 — Certains rôles disposent-ils structurellement de plus de ressources ?
+
+### Objectif
+
+Cette analyse vise à étudier la répartition des ressources économiques entre les différents rôles de League of Legends.
+
+Pour cela, nous comparons le nombre moyen de golds gagnés par minute (`gold_per_min`) pour chaque rôle sur la scène professionnelle.
+
+```{r q6-role-economy, echo=FALSE, fig.width=8, fig.height=5}
+
+library(tidyverse)
+library(readr)
+
+pro <- read_delim(
+  "data/lol_pro_scene_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(
+    role = recode(role, "UTILITY" = "SUPPORT")
+  )
+
+role_economy <- pro %>%
+  group_by(role) %>%
+  summarise(
+    gold_per_min = mean(gold_per_min, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(gold_per_min)
+
+ggplot(
+  role_economy,
+  aes(
+    x = reorder(role, gold_per_min),
+    y = gold_per_min,
+    fill = role
+  )
+) +
+  geom_col(show.legend = FALSE, width = 0.7) +
+  geom_text(
+    aes(label = round(gold_per_min,0)),
+    hjust = -0.15,
+    size = 4
+  ) +
+  coord_flip() +
+  scale_y_continuous(
+    expand = expansion(mult = c(0,0.12))
+  ) +
+  labs(
+    title = "Gold moyen gagné par minute selon le rôle",
+    subtitle = "Scène professionnelle",
+    x = "Rôle",
+    y = "Gold par minute",
+    caption = "Source : Oracle's Elixir"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11)
+  )
+
+```
+
+### Analyse des résultats
+
+Cette visualisation compare la quantité moyenne de gold générée par minute pour chaque rôle.
+
+On observe que certains rôles disposent naturellement d'un accès plus important aux ressources économiques. Les rôles de carry, notamment MID et ADC (BOTTOM), affichent généralement les valeurs les plus élevées car ils récupèrent une part importante du farm et des éliminations.
+
+À l'inverse, le rôle SUPPORT présente logiquement les valeurs les plus faibles puisqu'il privilégie l'aide à l'équipe plutôt que l'accumulation de ressources individuelles.
+
+Ces différences montrent que la répartition des ressources est structurellement liée au rôle occupé. Tous les joueurs ne disposent donc pas des mêmes opportunités économiques au cours d'une partie.
+
+Cette organisation constitue l'un des fondements stratégiques de League of Legends et influence fortement la manière dont chaque rôle contribue à la victoire collective.
