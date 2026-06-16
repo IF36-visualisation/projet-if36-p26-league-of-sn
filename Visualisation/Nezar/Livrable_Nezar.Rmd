@@ -14,6 +14,8 @@ library(ggplot2)
 library(readr)
 library(scales)
 
+result_colors <- c("Défaite" = "#D62728", "Victoire" = "#2CA02C")
+
 pro <- read_csv("data/pro_final.csv") |>
   mutate(
     resultat = factor(win, levels = c(0, 1), labels = c("Défaite", "Victoire")),
@@ -51,7 +53,7 @@ ggplot(pro, aes(x = golddiffat10, color = resultat)) +
     limits = c(0, 1),
     breaks = c(0, 0.25, 0.5, 0.75, 1)
   ) +
-  scale_color_manual(values = c("Défaite" = "#F05A5A", "Victoire" = "#08A6B5")) +
+  scale_color_manual(values = result_colors) +
   labs(
     title = "Répartition cumulative de l’écart de gold à 10 minutes",
     subtitle = "Comparaison entre joueurs victorieux et vaincus",
@@ -123,7 +125,7 @@ pro_bins <- pro |>
   )
 
 ggplot(pro_bins, aes(x = tranche_gold, y = winrate)) +
-  geom_col(fill = "#2C7BE5", alpha = 0.85) +
+  geom_col(fill = result_colors["Victoire"], alpha = 0.85) +
   geom_hline(yintercept = 0.5, linetype = "dashed", linewidth = 0.7, color = "gray40") +
   scale_y_continuous(
     labels = scales::percent_format(accuracy = 1),
@@ -170,7 +172,7 @@ ggplot(pro, aes(x = resultat, y = golddiffat10, fill = resultat)) +
   stat_summary(fun = median, geom = "crossbar", width = 0.30, color = "black", linewidth = 0.35) +
   geom_hline(yintercept = 0, linetype = "dashed", linewidth = 0.5, color = "black") +
   facet_wrap(~ role, ncol = 2) +
-  scale_fill_manual(values = c("Défaite" = "#F05A5A", "Victoire" = "#08A6B5"), name = "Issue de la partie") +
+  scale_fill_manual(values = result_colors, name = "Issue de la partie") +
   coord_cartesian(ylim = c(-2500, 2500)) +
   labs(title = "Écart de gold à 10 minutes selon le rôle",
        subtitle = "Comparaison entre joueurs victorieux et vaincus",

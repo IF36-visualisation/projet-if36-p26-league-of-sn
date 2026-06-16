@@ -28,7 +28,9 @@ résultats.
 library(tidyverse)
 library(knitr)
 
-pro <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_pro_scene_dataset.csv",
+result_colors <- c("Défaite" = "#D62728", "Victoire" = "#2CA02C")
+
+pro <- read_delim("../../data/lol_pro_scene_dataset.csv",
                   delim          = ";",
                   locale         = locale(decimal_mark = ","),
                   show_col_types = FALSE) %>%
@@ -55,7 +57,7 @@ ggplot(winrate_barons, aes(x = factor(barons), y = winrate, fill = winrate)) +
   geom_hline(yintercept = 50, linetype = "dashed", color = "grey40") +
   geom_text(aes(label = paste0(round(winrate, 1), "%")),
             vjust = -0.5, size = 4) +
-  scale_fill_gradient(low = "#e74c3c", high = "#2ecc71") +
+  scale_fill_gradient(low = result_colors["Défaite"], high = result_colors["Victoire"]) +
   scale_y_continuous(limits = c(0, 110)) +
   labs(
     title    = "Q10 — Taux de victoire selon le nombre de barons pris (Pro)",

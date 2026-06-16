@@ -13,6 +13,8 @@ library(scales)
 
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
+result_colors <- c("Defaite" = "#D62728", "Victoire" = "#2CA02C")
+
 df_ranked <- read_delim(
   "../../data/lol_ranked_dataset.csv",
   delim = ";",
@@ -49,7 +51,7 @@ Pour repondre a cette question, nous comparons les distributions de KDA entre jo
 ggplot(df_ranked, aes(x = resultat, y = kda, fill = resultat)) +
   geom_boxplot(outlier.alpha = 0.12, width = 0.58, color = "gray25") +
   stat_summary(fun = median, geom = "point", size = 2.4, color = "black") +
-  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  scale_fill_manual(values = result_colors) +
   coord_cartesian(ylim = c(0, 12)) +
   labs(
     title = "Distribution du KDA selon le resultat",
@@ -91,7 +93,7 @@ ggplot(kda_winrate, aes(x = tranche_kda, y = winrate, fill = winrate)) +
   geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray45") +
   geom_text(aes(label = percent(winrate, accuracy = 1)), vjust = -0.35, size = 3.2) +
   scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
-  scale_fill_gradient(low = "#D1495B", high = "#3CA370") +
+  scale_fill_gradient(low = result_colors["Defaite"], high = result_colors["Victoire"]) +
   labs(
     title = "Taux de victoire selon le niveau de KDA",
     subtitle = "Chaque barre regroupe les joueurs dans une tranche de KDA",

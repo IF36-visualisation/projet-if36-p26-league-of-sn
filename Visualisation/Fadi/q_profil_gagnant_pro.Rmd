@@ -26,7 +26,9 @@ library(tidyverse)
 library(knitr)
 library(fmsb)
 
-pro <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_pro_scene_dataset.csv",
+result_colors <- c("Défaite" = "#D62728", "Victoire" = "#2CA02C")
+
+pro <- read_delim("../../data/lol_pro_scene_dataset.csv",
                   delim          = ";",
                   locale         = locale(decimal_mark = ","),
                   show_col_types = FALSE) %>%
@@ -107,8 +109,8 @@ radar_data <- data.frame(
 
 rownames(radar_data) <- c("max", "min", "Victoire", "Défaite")
 
-col_win  <- "#2ecc71"
-col_lose <- "#e74c3c"
+col_win  <- result_colors["Victoire"]
+col_lose <- result_colors["Défaite"]
 
 radarchart(
   radar_data,
@@ -207,8 +209,8 @@ ggplot(cor_win, aes(x = reorder(variable, correlation),
             size = 3.5) +
   geom_hline(yintercept = 0, color = "grey40") +
   coord_flip() +
-  scale_fill_gradient2(low = "#e74c3c", mid = "white",
-                       high = "#2ecc71", midpoint = 0) +
+  scale_fill_gradient2(low = result_colors["Défaite"], mid = "white",
+                       high = result_colors["Victoire"], midpoint = 0) +
   scale_y_continuous(limits = c(-0.6, 0.6)) +
   labs(
     title    = "Q4 — Corrélation des variables avec la victoire (Pro)",

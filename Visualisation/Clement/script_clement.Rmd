@@ -9,6 +9,8 @@ output: html_document
 library(dplyr)
 library(ggplot2)
 library(readr)
+
+context_colors <- c("Pro" = "#1F77B4", "Ranked" = "#D62728")
 ```
 
 ```{r data, include=FALSE}
@@ -36,29 +38,29 @@ On s'attends à voir plus de wards posées par les supports par rapport aux autr
 vision_pro <- df_pro %>%
   group_by(role) %>%
   summarise(avg_wards = mean(wards, na.rm = TRUE)) %>%
-  mutate(Source = "Pro")
+  mutate(contexte = "Pro")
 
 vision_ranked <- df_ranked %>%
   group_by(role) %>%
   summarise(avg_wards = mean(wards, na.rm = TRUE)) %>%
-  mutate(Source = "Ranked")
+  mutate(contexte = "Ranked")
 
 df_vision <- bind_rows(vision_pro, vision_ranked) %>%
   filter(!is.na(role)) %>%
   mutate(role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY")))
 
-ggplot(df_vision, aes(x = role, y = avg_wards, fill = Source)) +
+ggplot(df_vision, aes(x = role, y = avg_wards, fill = contexte)) +
   geom_bar(stat = "identity", position = "dodge", color = "white") +
   geom_text(aes(label = round(avg_wards, 1)),
             position = position_dodge(width = 0.9),
             vjust = -0.5, size = 3.5) +
-  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  scale_fill_manual(values = context_colors) +
   labs(
     title = "Investissement dans la Vision : Pros vs Ranked",
     subtitle = "Moyenne de wards posées par rôle",
     x = "Rôle",
     y = "Nombre moyen de wards",
-    fill = "Catégorie de joueur"
+    fill = "Contexte"
   ) +
   theme_minimal() +
   theme(
@@ -94,23 +96,23 @@ Nous pouvons nous attendre à un taux de victoire légèrement supérieur lorsqu
 ```{r graphique 2}
 vision_win_pro <- df_pro %>%
   select(win, wards) %>%
-  mutate(Source = "Pro")
+  mutate(contexte = "Pro")
 
 vision_win_ranked <- df_ranked %>%
   select(win, wards) %>%
-  mutate(Source = "Ranked")
+  mutate(contexte = "Ranked")
 
 df_corr <- bind_rows(vision_win_pro, vision_win_ranked) %>%
   filter(wards <= 60) %>%
   mutate(ward_interval = cut(wards, breaks = seq(0, 60, by = 10))) %>%
   filter(!is.na(ward_interval)) %>%
-  group_by(Source, ward_interval) %>%
+  group_by(contexte, ward_interval) %>%
   summarise(win_rate = mean(win, na.rm = TRUE) * 100, .groups = "drop")
 
-ggplot(df_corr, aes(x = ward_interval, y = win_rate, fill = Source)) +
+ggplot(df_corr, aes(x = ward_interval, y = win_rate, fill = contexte)) +
   geom_bar(stat = "identity", position = "dodge") +
   geom_hline(yintercept = 50, linetype = "dashed", alpha = 0.5) +
-  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  scale_fill_manual(values = context_colors) +
   labs(
     title = "Taux de Victoire selon le nombre de wards posées",
     x = "Nombre de wards",
@@ -139,16 +141,16 @@ Nous analyserons la relation entre durée de partie et nombre de wards grâce à
 
 ```{r graphique 3}
 df_time <- bind_rows(
-  df_pro %>% mutate(Source = "Pro"),
-  df_ranked %>% mutate(Source = "Ranked")
+  df_pro %>% mutate(contexte = "Pro"),
+  df_ranked %>% mutate(contexte = "Ranked")
 ) %>%
   mutate(duration_min = game_duration / 60) %>%
   filter(duration_min > 15 & duration_min < 50)
 
-ggplot(df_time, aes(x = duration_min, y = wards, color = Source)) +
+ggplot(df_time, aes(x = duration_min, y = wards, color = contexte)) +
   geom_point(alpha = 0.1) +
   geom_smooth(method = "gam", linewidth = 1.2) +
-  scale_color_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  scale_color_manual(values = context_colors) +
   labs(
     title = "Vision selon la durée de la partie",
     x = "Durée (minutes)",
@@ -161,8 +163,8 @@ On se rend compte que 2 nuages de points se distinguent, il s'agit des supports 
 
 ```{r graphique 4}
 df_vision_ext <- bind_rows(
-    df_pro %>% mutate(Source = "Pro"),
-    df_ranked %>% mutate(Source = "Ranked")
+    df_pro %>% mutate(contexte = "Pro"),
+    df_ranked %>% mutate(contexte = "Ranked")
   ) %>%
   mutate(
     duration_min = game_duration / 60,
@@ -171,11 +173,11 @@ df_vision_ext <- bind_rows(
   ) %>%
   filter(duration_min > 15 & duration_min < 50)
 
-ggplot(df_vision_ext, aes(x = duration_min, y = wards, color = Source)) +
+ggplot(df_vision_ext, aes(x = duration_min, y = wards, color = contexte)) +
   geom_point(alpha = 0.1, size = 1) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 1.2) +
   facet_wrap(~is_support, scales = "free_y") + 
-  scale_color_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  scale_color_manual(values = context_colors) +
   labs(
     title = "Vision selon la durée de la partie en isolant les supports",
     x = "Durée (minutes)",
@@ -202,8 +204,8 @@ Nous introduirons une métrique normalisée : les wards par minute (WPM), afin d
 
 ```{r graphique 5}
 df_vision_ext <- bind_rows(
-  df_pro %>% mutate(Source = "Pro"),
-  df_ranked %>% mutate(Source = "Ranked")
+  df_pro %>% mutate(contexte = "Pro"),
+  df_ranked %>% mutate(contexte = "Ranked")
 ) %>%
   mutate(
     duration_min = game_duration / 60,
@@ -212,9 +214,9 @@ df_vision_ext <- bind_rows(
   ) %>%
   filter(duration_min > 15 & duration_min < 50)
 
-ggplot(df_vision_ext, aes(x = role, y = wpm, fill = Source)) +
+ggplot(df_vision_ext, aes(x = role, y = wpm, fill = contexte)) +
   geom_boxplot(outlier.alpha = 0.2) +
-  scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
+  scale_fill_manual(values = context_colors) +
   labs(
     title = "Intensité de vision (WPM)",
     x = "Rôle",
@@ -256,8 +258,8 @@ df_early_pro <- df_pro %>%
   )
 
 ggplot(df_early_pro, aes(x = wpm, y = golddiffat15)) +
-  geom_point(alpha = 0.2, color = "blue") +
-  geom_smooth(method = "lm", color = "blue", linewidth = 1.2) +
+  geom_point(alpha = 0.2, color = context_colors["Pro"]) +
+  geom_smooth(method = "lm", color = context_colors["Pro"], linewidth = 1.2) +
   labs(
     title = "Impact de la vision du support sur l'avantage de gold à 15 minutes",
     subtitle = "Analyse sur la scène professionnelle uniquement",

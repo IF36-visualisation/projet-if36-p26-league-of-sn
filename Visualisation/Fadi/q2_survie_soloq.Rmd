@@ -24,7 +24,9 @@ complète de la distribution.
 library(tidyverse)
 library(knitr)
 
-soloq <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_ranked_dataset.csv",
+result_colors <- c("Défaite" = "#D62728", "Victoire" = "#2CA02C")
+
+soloq <- read_delim("../../data/lol_ranked_dataset.csv",
                     delim          = ";",
                     locale         = locale(decimal_mark = ","),
                     show_col_types = FALSE) %>%
@@ -33,8 +35,8 @@ soloq <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_ranked_dataset.csv",
 
 ```{r stats-deaths}
 soloq %>%
-  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
-  group_by(Resultat) %>%
+  mutate(resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  group_by(resultat) %>%
   summarise(
     n          = n(),
     mediane    = median(deaths, na.rm = TRUE),
@@ -48,15 +50,15 @@ soloq %>%
 
 ```{r boxplot-deaths, fig.width=8, fig.height=5}
 soloq %>%
-  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
-  ggplot(aes(x = Resultat, y = deaths, fill = Resultat)) +
+  mutate(resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  ggplot(aes(x = resultat, y = deaths, fill = resultat)) +
   geom_boxplot(
     outlier.shape = 16,
     outlier.size  = 0.8,
     outlier.alpha = 0.3,
     width         = 0.5
   ) +
-  scale_fill_manual(values = c("Victoire" = "#2ecc71", "Défaite" = "#e74c3c")) +
+  scale_fill_manual(values = result_colors) +
   labs(
     title   = "Q2 — Distribution des morts selon le résultat (SoloQ)",
     x       = "Résultat",
@@ -69,12 +71,12 @@ soloq %>%
 
 ```{r violin-deaths, fig.width=8, fig.height=5}
 soloq %>%
-  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
-  ggplot(aes(x = Resultat, y = deaths, fill = Resultat)) +
+  mutate(resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  ggplot(aes(x = resultat, y = deaths, fill = resultat)) +
   geom_violin(alpha = 0.4, trim = TRUE) +
   geom_boxplot(width = 0.12, outlier.alpha = 0,
                color = "black", linewidth = 0.5) +
-  scale_fill_manual(values = c("Victoire" = "#2ecc71", "Défaite" = "#e74c3c")) +
+  scale_fill_manual(values = result_colors) +
   coord_cartesian(ylim = c(0, 20)) +
   labs(
     title    = "Q2 — Violin plot des morts selon le résultat (SoloQ)",

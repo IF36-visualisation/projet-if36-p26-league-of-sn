@@ -7,6 +7,8 @@ output: html_document
 library(tidyverse)
 library(readr)
 
+context_colors <- c("Pro" = "#1F77B4", "Ranked" = "#D62728")
+
 pro <- read_delim(
   "data/lol_pro_scene_dataset.csv",
   delim = ";",
@@ -34,11 +36,11 @@ comparaison_deaths <- bind_rows(
 
   ranked %>%
     select(deaths) %>%
-    mutate(contexte = "SoloQ"),
+    mutate(contexte = "Ranked"),
 
   pro %>%
     select(deaths) %>%
-    mutate(contexte = "Professionnel")
+    mutate(contexte = "Pro")
 
 )
 
@@ -62,15 +64,10 @@ ggplot(
     size = 4,
     color = "black"
   ) +
-  scale_fill_manual(
-    values = c(
-      "SoloQ" = "#08A6B5",
-      "Professionnel" = "#F05A5A"
-    )
-  ) +
+  scale_fill_manual(values = context_colors) +
   labs(
     title = "Nombre de morts selon le contexte de jeu",
-    subtitle = "Comparaison entre SoloQ et scène professionnelle",
+    subtitle = "Comparaison entre Ranked et scène professionnelle",
     x = "Contexte de jeu",
     y = "Nombre de morts",
     fill = "Contexte",
@@ -86,13 +83,13 @@ ggplot(
 
 ## Analyse des résultats
 
-Cette visualisation compare le nombre de morts observé en SoloQ et en scène professionnelle.
+Cette visualisation compare le nombre de morts observé en Ranked et en scène professionnelle.
 
 La médiane est représentée par la ligne centrale de chaque boîte tandis que le losange noir représente la moyenne.
 
 Si les valeurs observées chez les professionnels sont plus faibles, cela traduit une meilleure gestion du risque, une meilleure coordination d'équipe et une prise de décision plus disciplinée.
 
-À l'inverse, des valeurs plus élevées en SoloQ peuvent s'expliquer par un style de jeu plus agressif, davantage d'erreurs individuelles et une coordination plus limitée entre les joueurs.
+À l'inverse, des valeurs plus élevées en Ranked peuvent s'expliquer par un style de jeu plus agressif, davantage d'erreurs individuelles et une coordination plus limitée entre les joueurs.
 
 Cette analyse permet ainsi d'évaluer dans quelle mesure la maîtrise des risques constitue un facteur de performance au plus haut niveau compétitif.
 

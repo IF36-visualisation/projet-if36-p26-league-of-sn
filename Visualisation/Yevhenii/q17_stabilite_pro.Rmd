@@ -14,13 +14,15 @@ library(scales)
 
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
+context_colors <- c("Pro" = "#1F77B4", "Ranked" = "#D62728")
+
 df_ranked <- read_delim(
   "../../data/lol_ranked_dataset.csv",
   delim = ";",
   locale = locale(decimal_mark = ","),
   show_col_types = FALSE
 ) %>%
-  mutate(contexte = "SoloQ")
+  mutate(contexte = "Ranked")
 
 df_pro <- read_delim(
   "../../data/lol_pro_scene_dataset.csv",
@@ -35,7 +37,7 @@ df_compare <- bind_rows(
   df_pro %>% select(contexte, role, kills, deaths, assists, kda, gold, cs)
 ) %>%
   mutate(
-    contexte = factor(contexte, levels = c("SoloQ", "Pro")),
+    contexte = factor(contexte, levels = c("Ranked", "Pro")),
     role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"))
   ) %>%
   filter(!is.na(kda), kda <= 20)
@@ -57,7 +59,7 @@ Question : Les performances sont-elles plus stables en pro ?
 
 #### Methode
 
-Pour mesurer la stabilite, nous comparons la dispersion des performances entre SoloQ et scene professionnelle. Le KDA donne une premiere lecture globale, puis un profil de dispersion par metrique permet de voir si la stabilite concerne seulement le KDA ou plusieurs dimensions du jeu.
+Pour mesurer la stabilite, nous comparons la dispersion des performances entre Ranked et scene professionnelle. Le KDA donne une premiere lecture globale, puis un profil de dispersion par metrique permet de voir si la stabilite concerne seulement le KDA ou plusieurs dimensions du jeu.
 
 #### Visualisation 1 - Dispersion du KDA selon le contexte
 
@@ -65,10 +67,10 @@ Pour mesurer la stabilite, nous comparons la dispersion des performances entre S
 ggplot(df_compare, aes(x = contexte, y = kda, fill = contexte)) +
   geom_boxplot(outlier.alpha = 0.1, width = 0.58, color = "gray25") +
   stat_summary(fun = median, geom = "point", size = 2.4, color = "black") +
-  scale_fill_manual(values = c("SoloQ" = "#4C78A8", "Pro" = "#D17B49")) +
+  scale_fill_manual(values = context_colors) +
   coord_cartesian(ylim = c(0, 12)) +
   labs(
-    title = "Dispersion du KDA : SoloQ vs Pro",
+    title = "Dispersion du KDA : Ranked vs Pro",
     subtitle = "Un intervalle plus serre indique une performance plus stable",
     x = "Contexte",
     y = "KDA"
@@ -121,7 +123,7 @@ ggplot(dispersion_metrics, aes(x = metrique, y = ecart_type, fill = contexte)) +
     vjust = -0.35,
     size = 3.1
   ) +
-  scale_fill_manual(values = c("SoloQ" = "#4C78A8", "Pro" = "#D17B49")) +
+  scale_fill_manual(values = context_colors) +
   scale_y_continuous(labels = label_number(accuracy = 0.1), expand = expansion(mult = c(0, 0.12))) +
   labs(
     title = "Dispersion standardisee des performances",

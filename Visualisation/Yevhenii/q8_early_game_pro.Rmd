@@ -13,6 +13,8 @@ library(scales)
 
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
+result_colors <- c("Defaite" = "#D62728", "Victoire" = "#2CA02C")
+
 df_pro <- read_delim(
   "../../data/lol_pro_scene_dataset.csv",
   delim = ";",
@@ -52,7 +54,7 @@ ggplot(df_pro, aes(x = resultat, y = goldat10, fill = resultat)) +
   geom_violin(alpha = 0.35, trim = FALSE, color = "gray35") +
   geom_boxplot(width = 0.16, outlier.alpha = 0.08, color = "gray20") +
   stat_summary(fun = median, geom = "point", size = 2.3, color = "black") +
-  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  scale_fill_manual(values = result_colors) +
   labs(
     title = "Gold a 10 minutes selon le resultat",
     subtitle = "Comparaison des joueurs professionnels victorieux et vaincus",
@@ -74,7 +76,7 @@ La difference reste toutefois moderee : le gold brut depend fortement du role, c
 ggplot(df_pro, aes(x = resultat, y = goldat10, fill = resultat)) +
   geom_boxplot(outlier.alpha = 0.08, width = 0.55, color = "gray25") +
   facet_wrap(~ role, ncol = 3) +
-  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  scale_fill_manual(values = result_colors) +
   labs(
     title = "Gold a 10 minutes selon le role",
     subtitle = "La relation entre early game et victoire varie selon la fonction du joueur",
