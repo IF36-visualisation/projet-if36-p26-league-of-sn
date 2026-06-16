@@ -1,0 +1,141 @@
+---
+title: "Visualisation - Q17"
+author: "Yevhenii"
+date: "2026-06-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+df_ranked <- read_delim(
+  "../../data/lol_ranked_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(contexte = "SoloQ")
+
+df_pro <- read_delim(
+  "../../data/lol_pro_scene_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(contexte = "Pro")
+
+df_compare <- bind_rows(
+  df_ranked %>% select(contexte, role, kills, deaths, assists, kda, gold, cs),
+  df_pro %>% select(contexte, role, kills, deaths, assists, kda, gold, cs)
+) %>%
+  mutate(
+    contexte = factor(contexte, levels = c("SoloQ", "Pro")),
+    role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"))
+  ) %>%
+  filter(!is.na(kda), kda <= 20)
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 11, color = "gray30"),
+      axis.title = element_text(face = "bold"),
+      strip.text = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+)
+```
+
+Question : Les performances sont-elles plus stables en pro ?
+
+#### Methode
+
+Pour mesurer la stabilite, nous comparons la dispersion des performances entre SoloQ et scene professionnelle. Le KDA donne une premiere lecture globale, puis un profil de dispersion par metrique permet de voir si la stabilite concerne seulement le KDA ou plusieurs dimensions du jeu.
+
+#### Visualisation 1 - Dispersion du KDA selon le contexte
+
+```{r}
+ggplot(df_compare, aes(x = contexte, y = kda, fill = contexte)) +
+  geom_boxplot(outlier.alpha = 0.1, width = 0.58, color = "gray25") +
+  stat_summary(fun = median, geom = "point", size = 2.4, color = "black") +
+  scale_fill_manual(values = c("SoloQ" = "#4C78A8", "Pro" = "#D17B49")) +
+  coord_cartesian(ylim = c(0, 12)) +
+  labs(
+    title = "Dispersion du KDA : SoloQ vs Pro",
+    subtitle = "Un intervalle plus serre indique une performance plus stable",
+    x = "Contexte",
+    y = "KDA"
+  ) +
+  theme(legend.position = "none")
+```
+
+#### Interpretation
+
+Cette visualisation permet de comparer directement la variabilite du KDA. Si la boite et les moustaches du contexte professionnel sont plus resserrees, cela indique une performance plus stable. Si elles sont plus larges, cela signifie au contraire que la specialisation des roles ou les ecarts de partie produisent une forte dispersion.
+
+Le KDA doit toutefois etre interprete avec prudence, car les supports professionnels peuvent avoir beaucoup d'assists et peu de morts, ce qui augmente leur KDA et peut elargir la distribution pro.
+
+#### Visualisation 2 - Ecart-type des principales metriques
+
+```{r}
+dispersion_metrics <- df_compare %>%
+  select(contexte, kills, deaths, assists, kda, gold, cs) %>%
+  pivot_longer(
+    cols = c(kills, deaths, assists, kda, gold, cs),
+    names_to = "metrique",
+    values_to = "valeur"
+  ) %>%
+  group_by(metrique) %>%
+  mutate(valeur_standardisee = as.numeric(scale(valeur))) %>%
+  ungroup() %>%
+  group_by(contexte, metrique) %>%
+  summarise(
+    ecart_type = sd(valeur_standardisee, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    metrique = recode(
+      metrique,
+      kills = "Kills",
+      deaths = "Deaths",
+      assists = "Assists",
+      kda = "KDA",
+      gold = "Gold",
+      cs = "CS"
+    ),
+    metrique = factor(metrique, levels = c("Kills", "Deaths", "Assists", "KDA", "Gold", "CS"))
+  )
+
+ggplot(dispersion_metrics, aes(x = metrique, y = ecart_type, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.72), width = 0.62, color = "white") +
+  geom_text(
+    aes(label = round(ecart_type, 2)),
+    position = position_dodge(width = 0.72),
+    vjust = -0.35,
+    size = 3.1
+  ) +
+  scale_fill_manual(values = c("SoloQ" = "#4C78A8", "Pro" = "#D17B49")) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1), expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = "Dispersion standardisee des performances",
+    subtitle = "Les metriques sont standardisees pour comparer leurs ecarts-types sur la meme echelle",
+    x = "Metrique",
+    y = "Ecart-type standardise",
+    fill = "Contexte"
+  )
+```
+
+#### Interpretation
+
+Cette synthese montre si la scene professionnelle est plus stable sur plusieurs dimensions ou seulement sur certaines statistiques. Une barre plus basse signifie que les valeurs sont moins dispersees autour de la moyenne.
+
+Si le pro apparait plus stable sur les morts ou les ressources, cela peut traduire une meilleure discipline collective. Si le pro est plus variable sur les assists ou le KDA, cela peut venir de la specialisation plus forte des roles et de la coordination d'equipe.
+
+Ainsi, la stabilite en pro n'est pas forcement uniforme : elle depend de la metrique observee et de la maniere dont les roles structurent la performance.

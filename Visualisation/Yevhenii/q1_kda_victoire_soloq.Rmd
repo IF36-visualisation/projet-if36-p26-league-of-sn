@@ -1,0 +1,109 @@
+---
+title: "Visualisation - Q1"
+author: "Yevhenii"
+date: "2026-06-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+df_ranked <- read_delim(
+  "../../data/lol_ranked_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(
+    win = as.integer(win),
+    resultat = factor(win, levels = c(0, 1), labels = c("Defaite", "Victoire"))
+  ) %>%
+  filter(!is.na(kda), kda <= 20)
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 11, color = "gray30"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+)
+```
+
+Question : Le KDA est-il un bon indicateur de victoire ?
+
+#### Methode
+
+Pour repondre a cette question, nous comparons les distributions de KDA entre joueurs gagnants et perdants en SoloQ. Nous utilisons ensuite des tranches de KDA afin de verifier si une hausse du KDA correspond bien a une hausse du taux de victoire.
+
+#### Visualisation 1 - Distribution du KDA selon le resultat
+
+```{r}
+ggplot(df_ranked, aes(x = resultat, y = kda, fill = resultat)) +
+  geom_boxplot(outlier.alpha = 0.12, width = 0.58, color = "gray25") +
+  stat_summary(fun = median, geom = "point", size = 2.4, color = "black") +
+  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  coord_cartesian(ylim = c(0, 12)) +
+  labs(
+    title = "Distribution du KDA selon le resultat",
+    subtitle = "Les valeurs extremes au-dessus de 20 sont retirees pour garder une lecture lisible",
+    x = "Resultat",
+    y = "KDA"
+  ) +
+  theme(legend.position = "none")
+```
+
+#### Interpretation
+
+On observe que les joueurs gagnants ont une distribution de KDA plus elevee que les joueurs perdants. La mediane des victoires est superieure, ce qui indique que le KDA capte bien une partie importante de la performance individuelle.
+
+Cependant, les distributions se chevauchent : certains joueurs gagnent avec un KDA faible et certains perdent avec un KDA eleve. Le KDA est donc un indicateur utile, mais il ne suffit pas seul a expliquer la victoire.
+
+#### Visualisation 2 - Taux de victoire par tranche de KDA
+
+```{r}
+kda_winrate <- df_ranked %>%
+  mutate(
+    tranche_kda = cut(
+      kda,
+      breaks = c(0, 1, 2, 3, 4, 5, 7, 10, 20),
+      include.lowest = TRUE,
+      right = FALSE
+    )
+  ) %>%
+  filter(!is.na(tranche_kda)) %>%
+  group_by(tranche_kda) %>%
+  summarise(
+    winrate = mean(win, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+ggplot(kda_winrate, aes(x = tranche_kda, y = winrate, fill = winrate)) +
+  geom_col(width = 0.7, color = "white") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray45") +
+  geom_text(aes(label = percent(winrate, accuracy = 1)), vjust = -0.35, size = 3.2) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  scale_fill_gradient(low = "#D1495B", high = "#3CA370") +
+  labs(
+    title = "Taux de victoire selon le niveau de KDA",
+    subtitle = "Chaque barre regroupe les joueurs dans une tranche de KDA",
+    x = "Tranche de KDA",
+    y = "Taux de victoire",
+    fill = "Winrate"
+  ) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
+#### Interpretation
+
+Le taux de victoire augmente globalement avec le KDA. Les tranches les plus faibles restent sous le seuil de 50 %, alors que les tranches les plus hautes sont associees a une probabilite de victoire beaucoup plus forte.
+
+Ainsi, le KDA est un bon indicateur descriptif de la victoire en SoloQ, surtout lorsqu'il est interprete par tranches. Sa limite principale est qu'il melange plusieurs effets : un bon joueur peut creer l'avantage, mais un joueur deja dans une equipe dominante peut aussi obtenir un meilleur KDA parce que la partie est favorable.

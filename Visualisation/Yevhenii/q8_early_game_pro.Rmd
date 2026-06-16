@@ -1,0 +1,91 @@
+---
+title: "Visualisation - Q8"
+author: "Yevhenii"
+date: "2026-06-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+df_pro <- read_delim(
+  "../../data/lol_pro_scene_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+) %>%
+  mutate(
+    win = as.integer(win),
+    resultat = factor(win, levels = c(0, 1), labels = c("Defaite", "Victoire")),
+    role = factor(role, levels = c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"))
+  ) %>%
+  filter(!is.na(goldat10))
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 11, color = "gray30"),
+      axis.title = element_text(face = "bold"),
+      strip.text = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+)
+```
+
+Question : L'early game est-il determinant ?
+
+#### Methode
+
+Pour etudier l'importance du debut de partie en scene professionnelle, nous analysons la variable `goldat10`, qui mesure la quantite de gold obtenue a 10 minutes. Nous comparons d'abord les distributions entre victoires et defaites, puis nous regardons si la relation reste visible selon les roles.
+
+#### Visualisation 1 - Gold a 10 minutes selon le resultat
+
+```{r}
+ggplot(df_pro, aes(x = resultat, y = goldat10, fill = resultat)) +
+  geom_violin(alpha = 0.35, trim = FALSE, color = "gray35") +
+  geom_boxplot(width = 0.16, outlier.alpha = 0.08, color = "gray20") +
+  stat_summary(fun = median, geom = "point", size = 2.3, color = "black") +
+  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  labs(
+    title = "Gold a 10 minutes selon le resultat",
+    subtitle = "Comparaison des joueurs professionnels victorieux et vaincus",
+    x = "Resultat",
+    y = "Gold a 10 minutes"
+  ) +
+  theme(legend.position = "none")
+```
+
+#### Interpretation
+
+Les joueurs victorieux ont en moyenne une distribution de `goldat10` legerement decalee vers le haut. Cela indique qu'un meilleur debut de partie est associe a la victoire, meme lorsque l'on observe une valeur brute plutot qu'un ecart direct avec l'adversaire.
+
+La difference reste toutefois moderee : le gold brut depend fortement du role, car un support et un carry ne generent pas les memes ressources. Il faut donc completer cette lecture avec une analyse par role.
+
+#### Visualisation 2 - Gold a 10 minutes par role
+
+```{r}
+ggplot(df_pro, aes(x = resultat, y = goldat10, fill = resultat)) +
+  geom_boxplot(outlier.alpha = 0.08, width = 0.55, color = "gray25") +
+  facet_wrap(~ role, ncol = 3) +
+  scale_fill_manual(values = c("Defaite" = "#D1495B", "Victoire" = "#3CA370")) +
+  labs(
+    title = "Gold a 10 minutes selon le role",
+    subtitle = "La relation entre early game et victoire varie selon la fonction du joueur",
+    x = NULL,
+    y = "Gold a 10 minutes",
+    fill = "Resultat"
+  )
+```
+
+#### Interpretation
+
+La comparaison par role montre que les victoires sont generalement associees a un `goldat10` plus eleve, mais l'ampleur de l'ecart varie selon les roles. Les roles qui captent davantage de ressources, comme `MIDDLE` ou `BOTTOM`, rendent l'avantage economique plus visible.
+
+Ainsi, l'early game est bien lie a la victoire, mais la variable brute `goldat10` doit etre interpretee avec prudence. Elle mesure a la fois la performance du debut de partie et la structure normale des ressources selon le role.
