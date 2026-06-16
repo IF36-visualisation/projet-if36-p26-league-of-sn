@@ -1,7 +1,7 @@
 ---
 title: "Analyse de la Vision : Scène Professionnelle vs Ranked"
 author: "Clément MENAUCOURT"
-date: "2026-04-18"
+date: "2026-06-10"
 output: html_document
 ---
 
@@ -22,12 +22,13 @@ df_ranked <- read_delim("../../data/lol_ranked_dataset.csv", delim = ";", show_c
 # 1. L'importance donnée à la vision entre les professionnels et la soloQ est-elle similaire ?
 
 ## Problématique
-Nous cherchons à savoir si l'importance accordée à la vision varie entre la scène professionnelle et les parties classées, et si cette différence dépend du rôle.
-
-## Méthode
-Nous utilisons un barchart afin de comparer la moyenne de wards posées selon :  
+Nous cherchons à savoir si l'importance accordée à la vision varie entre la scène professionnelle et les parties classées, et si cette différence dépend du rôle.  
+  
+Pour cela, nous utilisons un barchart afin de comparer la moyenne de wards posées selon :  
 - le rôle  
 - le type de parties (Pro vs SoloQ)
+
+On s'attends à voir plus de wards posées par les supports par rapport aux autres rôles, et par les pros par rapport aux joueurs de SoloQ.
 
 ## Visualisation 
 
@@ -68,7 +69,7 @@ ggplot(df_vision, aes(x = role, y = avg_wards, fill = Source)) +
 ```
 
 ## Interprétation
-Les supports concentrent l’essentiel de la vision dans les deux cas, avec une intensité plus élevée en partie professionnelle.
+Les supports concentrent comme attendu l’essentiel de la vision dans les deux cas, avec une intensité plus élevée en partie professionnelle.
 
 Les autres rôles présentent également un niveau de vision plus élevé chez les pros, ce qui suggère une responsabilité plus collective du contrôle de la carte.
 
@@ -85,8 +86,9 @@ Ainsi, la vision apparaît comme un indicateur de structuration stratégique du 
 ## Problématique
 Existe-t-il une relation entre le nombre de wards posées et les chances de victoire ?
 
-## Méthode
-Nous regroupons les données en tranches de nombre de wards posées afin de lisser les variations et observer une tendance globale.
+Nous regrouperons les données en tranches de nombre de wards posées afin de lisser les variations et observer une tendance globale.
+
+Nous pouvons nous attendre à un taux de victoire légèrement supérieur lorsque plus de wards sont posées, la vision donnant plus d'informations à l'équipe, on peut imaginer que la victoire en est facilitée.
 
 ## Visualisation
 ```{r graphique 2}
@@ -110,7 +112,7 @@ ggplot(df_corr, aes(x = ward_interval, y = win_rate, fill = Source)) +
   geom_hline(yintercept = 50, linetype = "dashed", alpha = 0.5) +
   scale_fill_manual(values = c("Pro" = "blue", "Ranked" = "red")) +
   labs(
-    title = "Taux de Victoire selon l'effort de vision",
+    title = "Taux de Victoire selon le nombre de wards posées",
     x = "Nombre de wards",
     y = "Taux de Victoire (%)"
   ) +
@@ -128,8 +130,10 @@ Ainsi, la vision est à la fois une cause et une conséquence de la victoire.
 
 # 3. Le "Vision Gap" dépend-il de la durée du match ?
 
-## Méthode
-Nous analysons la relation entre durée de partie et nombre de wards, puis nous introduisons une métrique normalisée : les **wards par minute (WPM)**.
+## Problématique
+On se demande si l'écart en nombre de wards posées entre parties classées et parties professionnelles augmente au fur et à mesure que la durée de la partie augmente.
+
+Nous analyserons la relation entre durée de partie et nombre de wards grâce à un scatter plot.
 
 ## Visualisation
 
@@ -192,8 +196,7 @@ Cela suggère qu’ils augmentent leur production de vision à mesure que les en
 ## Problématique
 Les professionnels posent plus de wards en valeur absolue, mais cette différence est-elle toujours présente lorsque l’on prend en compte la durée des parties ?
 
-## Méthode
-Nous introduisons une métrique normalisée : les wards par minute (WPM), afin de comparer l’intensité de vision indépendamment de la durée des matchs.
+Nous introduirons une métrique normalisée : les wards par minute (WPM), afin de comparer l’intensité de vision indépendamment de la durée des matchs.
 
 ## Visualisation
 
@@ -230,6 +233,52 @@ Ainsi, si les joueurs professionnels maintiennent en moyenne une intensité de v
 
 ---
 
+# 5. L'investissement en vision crée-t-il un avantage économique (Snowball) ?
+
+## Problématique
+Nous avons vu que les professionnels posent beaucoup plus de wards, mais cet investissement se traduit-il par un avantage concret en début de partie ? Nous cherchons à savoir si une forte intensité de vision permet de générer une avance économique (gold diff) à 15 minutes de jeu.  
+
+Cette analyse se concentre exclusivement sur la scène professionnelle, car les données sur l'écart d'or à 15 minutes n'est mesuré que dans cet environnement. 
+
+Nous utilisons un scatter plot pour observer la corrélation entre l'intensité de vision du support qui est le rôle le plus important concernant la vision comme vu précedemment, et l'avantage en or de son équipe à 15 minutes.  
+
+On s'attend à voir un avantage économique lié à l'avantage de vision car plus de wards pourront être achetées ou les wards apportent un avantage sur la carte permettant une meilleur gestion de l'économie.
+
+## Visualisation
+
+```{r graphique 6}
+
+df_early_pro <- df_pro %>%
+  filter(role == "UTILITY", !is.na(golddiffat15)) %>%
+  mutate(
+    duration_min = game_duration / 60,
+    wpm = wards / duration_min
+  )
+
+ggplot(df_early_pro, aes(x = wpm, y = golddiffat15)) +
+  geom_point(alpha = 0.2, color = "blue") +
+  geom_smooth(method = "lm", color = "blue", linewidth = 1.2) +
+  labs(
+    title = "Impact de la vision du support sur l'avantage de gold à 15 minutes",
+    subtitle = "Analyse sur la scène professionnelle uniquement",
+    x = "Intensité de vision du support (WPM)",
+    y = "Gold diff à 15 minutes de jeu"
+  ) +
+  theme_minimal()
+```
+
+## Interprétation
+
+On observe que la ligne de régression linéaire est presque parfaitement plate et stagne autour de 0. Les points forment un nuage dense et symétrique sans direction particulière.
+
+Cela suggère que l'intensité globale de vision du support n'a pas d'impact direct sur l'avantage en or à 15 minutes. Avoir un support qui affiche un fort taux de balises par minute sur l'ensemble de la partie ne garantit en rien que son équipe sera en avance économique à la fin de l'early game.
+
+Cependant, ce résultat met en lumière une limite méthodologique importante : la variable WPM calcule la moyenne des balises posées sur toute la durée du match, tandis que le golddiffat15 capture un instantané figé aux 15 premières minutes. Un support peut très bien avoir un faible investissement en vision en début de partie puis l'accélérer massivement plus tard lorsque les objectifs majeurs apparaissent, ce qui masque l'impact réel de la vision de début de partie. De plus, l'avantage en or à 15 minutes dépend beaucoup de l'efficacité des phases de lanes (un grand nombre de cs par rapport à son adversaire aura un gros impact) plutôt que du contrôle global de la carte.
+
+Ainsi, la vision ne doit pas être perçue comme un outil de génération de ressources, mais plutôt comme un mécanisme de transition et de sécurisation pour le milieu et la fin de partie.
+
+---
+
 # Conclusion générale
 
 La vision constitue un marqueur clair de professionnalisation du jeu.
@@ -244,3 +293,20 @@ Le véritable écart entre Pros et Ranked ne réside pas uniquement dans la quan
 - son intégration dans une stratégie collective  
 
 Ainsi, la vision n’est pas seulement une compétence technique, mais un indicateur de maturité stratégique du jeu.
+
+
+
+
+
+
+
+
+
+
+
+
+# Mettre problematique et methode en meme temps comme c'es pas long et ajouter une phrase pour dire a quoi on peut s'attendre avent de faire la question (pourquoi on teste ça) pour pouvoir comparer a la fin
+
+# Mettre les couleurs partout pareil
+
+# Une demi page pour expliquer notre organisation avec + et - aussi etre critique
