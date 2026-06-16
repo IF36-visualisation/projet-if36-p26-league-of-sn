@@ -1,0 +1,103 @@
+---
+title: "League of SN"
+author: "Fadi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Q10 — Les objectifs (barons) influencent-ils la victoire en pro ?
+
+En pro, les équipes passent beaucoup de temps à se battre pour le contrôle des
+objectifs. Le baron Nashor est l'objectif le plus puissant de la carte il donne
+un buff qui booste toute l'équipe pendant plusieurs minutes. On s'attend donc à ce
+que les équipes qui prennent plus de barons gagnent plus souvent.
+
+Note : dans notre dataset pro, les variables dragons, heralds et towers sont
+entièrement manquantes. On n'a accès qu'aux barons, donc on concentre l'analyse
+sur cet objectif.
+
+On utilise un barplot du taux de victoire selon le nombre de barons pris, suivi
+d'un tableau statistique pour voir la taille de chaque groupe et nuancer les
+résultats.
+
+```{r chargement}
+library(tidyverse)
+library(knitr)
+
+pro <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_pro_scene_dataset.csv",
+                  delim          = ";",
+                  locale         = locale(decimal_mark = ","),
+                  show_col_types = FALSE) %>%
+  mutate(win = as.logical(as.integer(win)))
+```
+
+```{r preparation-barons}
+pro_barons <- pro %>%
+  filter(!is.na(barons)) %>%
+  mutate(barons = as.integer(barons))
+
+winrate_barons <- pro_barons %>%
+  group_by(barons) %>%
+  summarise(
+    winrate = mean(win, na.rm = TRUE) * 100,
+    n       = n(),
+    .groups = "drop"
+  )
+```
+
+```{r barplot-winrate-barons, fig.width=8, fig.height=5}
+ggplot(winrate_barons, aes(x = factor(barons), y = winrate, fill = winrate)) +
+  geom_col(width = 0.6) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "grey40") +
+  geom_text(aes(label = paste0(round(winrate, 1), "%")),
+            vjust = -0.5, size = 4) +
+  scale_fill_gradient(low = "#e74c3c", high = "#2ecc71") +
+  scale_y_continuous(limits = c(0, 110)) +
+  labs(
+    title    = "Q10 — Taux de victoire selon le nombre de barons pris (Pro)",
+    subtitle = "La ligne pointillée indique le seuil de 50 %",
+    x        = "Nombre de barons",
+    y        = "Taux de victoire (%)",
+    caption  = "Source : Oracle's Elixir"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+```{r tableau-barons}
+winrate_barons %>%
+  rename(
+    "Barons"               = barons,
+    "Taux de victoire (%)" = winrate,
+    "Nombre de parties"    = n
+  ) %>%
+  mutate(`Taux de victoire (%)` = round(`Taux de victoire (%)`, 1)) %>%
+  kable()
+```
+
+Le barplot montre une tendance claire : les équipes qui prennent 0 baron ne
+gagnent que 45 % du temps, alors que celles qui en prennent 1 gagnent dans
+83 % des cas. La progression entre 0 et 2 barons est nette et sans ambiguïté.
+
+Cependant le tableau révèle un problème important sur les groupes 3 et 4 barons.
+D'abord les effectifs sont très faibles seulement 41 parties pour 3 barons et
+5 pour 4 barons ce qui rend ces résultats peu fiables statistiquement.
+
+Mais il y a aussi une explication logique de jeu : en pro, une partie dure en
+moyenne 30 à 35 minutes. Le baron respawn toutes les 6 minutes après avoir été
+tué. Arriver à 3 ou 4 barons dans une seule partie est donc extrêmement rare et
+signifie que la partie a duré très longtemps ce qui veut dire que l'équipe qui
+avait 2 barons n'a pas réussi à finir le jeu malgré son avantage. C'est donc un
+signe que quelque chose s'est mal passé : mauvaise décision, comeback adverse,
+ou partie très serrée. Ces équipes avec 3 ou 4 barons sont donc dans une
+situation paradoxale elles ont pris beaucoup d'objectifs mais n'ont toujours
+pas gagné, ce qui explique leur winrate plus bas que les équipes à 2 barons.
+
+En résumé, le baron est un objectif fortement associé à la victoire, mais
+prendre plus de 2 barons dans une partie est le signe d'une partie qui s'est
+compliquée. Les données au-delà de 2 barons ne sont pas suffisantes pour
+conclure et doivent être interprétées avec beaucoup de prudence.

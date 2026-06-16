@@ -1,0 +1,110 @@
+---
+title: "Q16 : Les joueurs professionnels meurent-ils moins ?"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readr)
+
+pro <- read_delim(
+  "data/lol_pro_scene_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+)
+
+ranked <- read_delim(
+  "data/lol_ranked_dataset.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ","),
+  show_col_types = FALSE
+)
+```
+
+
+## Objectif
+
+L'objectif de cette analyse est d'étudier la gestion du risque dans League of Legends en comparant le nombre de morts observé en SoloQ et en scène professionnelle.
+
+Nous cherchons à déterminer si les joueurs professionnels meurent moins souvent que les joueurs classés, ce qui pourrait refléter une meilleure coordination et une prise de décision plus maîtrisée.
+
+```{r deaths-plot, echo=FALSE, fig.width=8, fig.height=5}
+comparaison_deaths <- bind_rows(
+
+  ranked %>%
+    select(deaths) %>%
+    mutate(contexte = "SoloQ"),
+
+  pro %>%
+    select(deaths) %>%
+    mutate(contexte = "Professionnel")
+
+)
+
+ggplot(
+  comparaison_deaths,
+  aes(
+    x = contexte,
+    y = deaths,
+    fill = contexte
+  )
+) +
+  geom_boxplot(
+    alpha = 0.8,
+    outlier.alpha = 0.15,
+    width = 0.55
+  ) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    shape = 18,
+    size = 4,
+    color = "black"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "SoloQ" = "#08A6B5",
+      "Professionnel" = "#F05A5A"
+    )
+  ) +
+  labs(
+    title = "Nombre de morts selon le contexte de jeu",
+    subtitle = "Comparaison entre SoloQ et scène professionnelle",
+    x = "Contexte de jeu",
+    y = "Nombre de morts",
+    fill = "Contexte",
+    caption = "Le losange noir représente la moyenne."
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "top"
+  )
+```
+
+## Analyse des résultats
+
+Cette visualisation compare le nombre de morts observé en SoloQ et en scène professionnelle.
+
+La médiane est représentée par la ligne centrale de chaque boîte tandis que le losange noir représente la moyenne.
+
+Si les valeurs observées chez les professionnels sont plus faibles, cela traduit une meilleure gestion du risque, une meilleure coordination d'équipe et une prise de décision plus disciplinée.
+
+À l'inverse, des valeurs plus élevées en SoloQ peuvent s'expliquer par un style de jeu plus agressif, davantage d'erreurs individuelles et une coordination plus limitée entre les joueurs.
+
+Cette analyse permet ainsi d'évaluer dans quelle mesure la maîtrise des risques constitue un facteur de performance au plus haut niveau compétitif.
+
+## Statistiques descriptives
+
+```{r echo=FALSE}
+comparaison_deaths %>%
+  group_by(contexte) %>%
+  summarise(
+    Nombre = n(),
+    Moyenne = round(mean(deaths, na.rm = TRUE), 2),
+    Mediane = round(median(deaths, na.rm = TRUE), 2),
+    Ecart_type = round(sd(deaths, na.rm = TRUE), 2)
+  )
+```

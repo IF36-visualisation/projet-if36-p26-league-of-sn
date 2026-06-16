@@ -1,0 +1,104 @@
+---
+title: "League of SN"
+author: "Fadi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Q2 — La survie influence-t-elle la victoire en SoloQ ?
+
+En SoloQ, mourir donne de l'or à l'adversaire, crée des fenêtres pour prendre
+des objectifs et fait perdre du temps précieux. L'intuition est donc qu'un joueur
+qui meurt souvent perd plus souvent. Mais est-ce vraiment vérifiable dans les
+données ?
+
+On compare la distribution des morts entre gagnants et perdants avec un boxplot
+pour avoir les médianes et quartiles, et un violin plot pour voir la forme
+complète de la distribution.
+
+```{r chargement}
+library(tidyverse)
+library(knitr)
+
+soloq <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_ranked_dataset.csv",
+                    delim          = ";",
+                    locale         = locale(decimal_mark = ","),
+                    show_col_types = FALSE) %>%
+  mutate(win = as.logical(as.integer(win)))
+```
+
+```{r stats-deaths}
+soloq %>%
+  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  group_by(Resultat) %>%
+  summarise(
+    n          = n(),
+    mediane    = median(deaths, na.rm = TRUE),
+    moyenne    = round(mean(deaths, na.rm = TRUE), 2),
+    ecart_type = round(sd(deaths, na.rm = TRUE), 2),
+    q1         = quantile(deaths, 0.25, na.rm = TRUE),
+    q3         = quantile(deaths, 0.75, na.rm = TRUE)
+  ) %>%
+  kable()
+```
+
+```{r boxplot-deaths, fig.width=8, fig.height=5}
+soloq %>%
+  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  ggplot(aes(x = Resultat, y = deaths, fill = Resultat)) +
+  geom_boxplot(
+    outlier.shape = 16,
+    outlier.size  = 0.8,
+    outlier.alpha = 0.3,
+    width         = 0.5
+  ) +
+  scale_fill_manual(values = c("Victoire" = "#2ecc71", "Défaite" = "#e74c3c")) +
+  labs(
+    title   = "Q2 — Distribution des morts selon le résultat (SoloQ)",
+    x       = "Résultat",
+    y       = "Nombre de morts",
+    caption = "Source : Riot Games API"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+```{r violin-deaths, fig.width=8, fig.height=5}
+soloq %>%
+  mutate(Resultat = ifelse(win, "Victoire", "Défaite")) %>%
+  ggplot(aes(x = Resultat, y = deaths, fill = Resultat)) +
+  geom_violin(alpha = 0.4, trim = TRUE) +
+  geom_boxplot(width = 0.12, outlier.alpha = 0,
+               color = "black", linewidth = 0.5) +
+  scale_fill_manual(values = c("Victoire" = "#2ecc71", "Défaite" = "#e74c3c")) +
+  coord_cartesian(ylim = c(0, 20)) +
+  labs(
+    title    = "Q2 — Violin plot des morts selon le résultat (SoloQ)",
+    subtitle = "Le boxplot à l'intérieur indique la médiane et les quartiles",
+    x        = "Résultat",
+    y        = "Nombre de morts",
+    caption  = "Source : Riot Games API"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+Le tableau et le boxplot montrent clairement que les perdants meurent plus : la
+médiane des morts est de 6 chez les perdants contre 4 chez les gagnants. C'est
+un écart significatif.
+
+Le violin plot complète cette analyse en montrant la forme des distributions :
+la forme des gagnants est plus concentrée autour de 3-4 morts, avec peu de cas
+extrêmes. Celle des perdants est plus étalée vers le haut beaucoup de joueurs
+meurent 8, 10, voire 15 fois. Les parties très déséquilibrées où un joueur meurt
+énormément se retrouvent quasi exclusivement du côté des défaites.
+
+Ça confirme que mourir beaucoup est fortement associé à la défaite en SoloQ.
+Cela dit, la causalité n'est pas forcément dans un seul sens : on peut mourir
+parce qu'on perd, pas seulement perdre parce qu'on meurt. Une équipe déjà en
+difficulté va mécaniquement accumuler plus de morts. Les deux phénomènes se
+renforcent mutuellement.
