@@ -6,7 +6,7 @@ library(plotly)
 library(bslib)
 
 pro <- read_delim(
-  "../data/lol_pro_scene_dataset.csv",
+  "data/lol_pro_scene_dataset.csv",
   delim = ";",
   locale = locale(decimal_mark = ","),
   show_col_types = FALSE
@@ -20,7 +20,7 @@ pro <- read_delim(
   )
 
 ranked <- read_delim(
-  "../data/lol_ranked_dataset.csv",
+  "data/lol_ranked_dataset.csv",
   delim = ";",
   locale = locale(decimal_mark = ","),
   show_col_types = FALSE
