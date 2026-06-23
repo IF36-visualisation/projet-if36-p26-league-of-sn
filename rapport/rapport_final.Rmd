@@ -1,0 +1,1062 @@
+---
+title: 'League of SN : exploration des dynamiques de performance dans League of Legends'
+author: "Clément Menaucourt, Fadi Farhat, Yevhenii Telychko, Nezar Fagouri"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    toc: false
+    toc_depth: 2
+    latex_engine: xelatex
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: true
+    df_print: paged
+    fig_width: 8
+    fig_height: 5
+---
+
+```{r logo-page-garde, echo=FALSE, out.width="80%", fig.align="center"}
+knitr::include_graphics("assets/league-of-sn.png")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+
+library(tidyverse)
+library(scales)
+library(knitr)
+
+# ------------------------------------------------------------------
+# Palette harmonisée pour tout le rapport
+# Convention : contexte SoloQ = rouge, Pro = bleu
+#              issue Victoire = vert, Défaite = ambre
+#              corrélation Pro Fadi = bleu positif, rouge négatif
+# ------------------------------------------------------------------
+col_contexte <- c("SoloQ" = "#D1495B", "Pro" = "#3B82F6")
+col_issue    <- c("Défaite" = "#E9A23B", "Victoire" = "#43AA8B")
+col_kda_soloq <- c("Défaite" = "#E6A6A6", "Victoire" = "#B22222")
+col_corr_pro <- c("Positif" = "#4E79E7", "Négatif" = "#E76F61")
+col_role <- c(
+  "TOP"     = "#8C6D5A",
+  "JUNGLE"  = "#5B8E7D",
+  "MIDDLE"  = "#6C5B7B",
+  "BOTTOM"  = "#D17B49",
+  "UTILITY" = "#4C78A8",
+  "SUPP"    = "#4C78A8"
+)
+
+# Thème commun à tous les graphiques
+theme_lsn <- theme_minimal(base_size = 13) +
+  theme(
+    plot.title       = element_text(face = "bold", size = 13, lineheight = 0.95, margin = margin(b = 6)),
+    plot.subtitle    = element_text(size = 10, color = "gray30"),
+    axis.title       = element_text(face = "bold"),
+    strip.text       = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    legend.position  = "bottom"
+  )
+theme_set(theme_lsn)
+```
+
+\newpage
+
+# Introduction
+
+## Présentation du projet
+
+Ce projet s'inscrit dans le cadre du module IF36 à l'Université de Technologie de Troyes. Il explore les dynamiques de performance dans *League of Legends* à travers deux contextes de jeu distincts : la **SoloQ** (jeu individuel classé) et la **scène professionnelle**. L'objectif est de comparer ces deux environnements pour comprendre comment la structuration du jeu, individuelle d'un côté, collective et coordonnée de l'autre, modifie les performances, leur régularité et la place de chaque rôle.
+
+## Données
+
+L'analyse repose sur deux sources complémentaires.
+
+**Source principale : Riot Games API (dataset SoloQ).** Des parties classées de joueurs de haut niveau, où chaque ligne correspond à la performance d'un joueur dans une partie. On y trouve les variables de performance (`kills`, `deaths`, `assists`, `kda`), de ressources (`gold`, `cs`), de vision (`vision`, `wards_placed`), de combat (`damage`), de contexte (`role`, `champion`, `game_duration`) et le résultat (`win`). Cet environnement n'est pas coordonné : les décisions y sont prises individuellement.
+
+**Source complémentaire : Oracle's Elixir (dataset professionnel).** Des matchs de la scène compétitive (LEC, LCK, LCS, LPL et autres ligues). En plus des variables individuelles, ce dataset apporte des dimensions propres au jeu d'équipe : early game (`goldat10`, `golddiffat10`, `goldat15`), objectifs (`barons`), vision (`vision`, `wardsplaced`) et indicateurs collectifs (`teamkills`, `damageshare`, `kill_participation`). Cet environnement est fortement coordonné, chaque joueur remplissant une fonction précise.
+
+## Structure et nature des données
+
+Avant de commencer les visualisations, il est important de préciser la nature exacte des deux datasets utilisés. Les deux sources ne décrivent pas exactement le même environnement de jeu : la SoloQ correspond à un contexte individuel et peu coordonné, tandis que la scène professionnelle correspond à un contexte collectif, préparé et structuré. Cette différence influence directement l'interprétation des graphiques.
+
+### Sources utilisées
+
+| Dataset | Source | Taille |
+|---|---|---:|
+| `lol_ranked_dataset.csv` | Riot Games API | 1 690 lignes / 21 variables |
+| `lol_pro_scene_dataset.csv` | Oracle's Elixir | 29 480 lignes / 41 variables |
+
+Le premier fichier sert à analyser la performance individuelle en SoloQ : KDA, kills, deaths, rôle, vision et résultat. Le second fichier sert à analyser un environnement plus structuré : early game, objectifs, économie, vision et contribution collective. Les deux sources sont donc complémentaires, mais elles ne doivent pas être lues comme deux populations parfaitement identiques.
+
+### Variables communes aux deux datasets
+
+| Famille | Variables | Rôle dans le rapport |
+|---|---|---|
+| Résultat | `win` | Séparer victoires et défaites. |
+| Combat | `kills`, `deaths`, `assists`, `kda` | Mesurer l'impact individuel et la survie. |
+| Ressources | `gold`, `cs` | Observer l'accès au farm et à l'économie. |
+| Vision | `vision`, `wards` | Étudier le contrôle de carte. |
+| Contexte | `role`, `champion`, `game_duration` | Nuancer selon le rôle et la durée. |
+
+### Variables spécifiques au dataset professionnel
+
+| Famille | Variables | Intérêt analytique |
+|---|---|---|
+| Early game | `goldat10`, `golddiffat10`, `golddiffat15` | Mesurer l'avance économique. |
+| Objectifs | `barons` | Évaluer le poids des objectifs majeurs. |
+| Collectif | `teamkills`, `kill_participation`, `damageshare` | Distinguer impact individuel et jeu d'équipe. |
+| Normalisation | `gold_per_min`, `cs_per_min` | Comparer les rôles malgré la durée des parties. |
+
+### Limites générales à garder en tête
+
+Plusieurs précautions sont nécessaires pour éviter une mauvaise lecture des graphiques. D'abord, la plupart des résultats sont des relations statistiques : une corrélation avec la victoire ne prouve pas qu'une variable cause directement la victoire. Ensuite, certaines variables dépendent fortement du rôle. Par exemple, un support aura naturellement moins de CS qu'un carry, mais plus de vision et d'assists. Enfin, certaines variables attendues dans une analyse professionnelle, comme les dragons, les hérauts ou les tours, sont manquantes ou trop incomplètes dans le dataset. Ces limites justifient le choix d'une analyse visuelle prudente, toujours accompagnée d'une interprétation et d'une remise en contexte.
+
+## Démarche de lecture des visualisations
+
+Chaque question suit la même logique que dans le rapport d'exemple fourni : avant chaque graphique, un court paragraphe **Objectif de l'analyse** explique ce que l'on cherche à vérifier, pourquoi la visualisation est pertinente et ce que l'on peut s'attendre à observer. Après chaque graphique, un paragraphe **Analyse des résultats** ne se limite pas à décrire les barres ou les courbes : il explique ce que nous comprenons du jeu, ce qui nous surprend, ce qui confirme nos intuitions et ce qu'il faut remettre en question. L'idée est de garder une lecture humaine, presque comme si nous expliquions notre raisonnement à l'oral, tout en restant rigoureux sur les limites possibles : causalité incertaine, effet du rôle, effectifs faibles, variables manquantes ou différence entre volume et intensité.
+
+## Plan d'analyse
+
+La problématique générale est la suivante : *les performances des joueurs diffèrent-elles entre la SoloQ et la scène professionnelle, et comment ces différences s'expliquent-elles ?*
+
+Le rapport est volontairement étendu à une vingtaine de questions pour intégrer les analyses des dossiers individuels de tous les membres de l'équipe, sans reprendre les figures erronées du livrable de mi-semestre. L'exploration s'organise en trois axes :
+
+1. **La performance individuelle en SoloQ** : quels facteurs individuels (KDA, survie, rôle, ressources) sont associés à la victoire ?
+2. **La stratégie et le jeu professionnel** : comment l'économie, les objectifs et la vision structurent-ils la victoire collective ?
+3. **La comparaison SoloQ vs scène professionnelle** : où se situent les vraies différences de niveau, de régularité et de structuration ?
+
+
+# Traitement et harmonisation des données
+
+Les deux fichiers sont au format `;` avec une virgule comme séparateur décimal, ce qui impose une lecture explicite via `read_delim` et `locale()`.
+
+```{r chargement}
+soloq <- read_delim(
+  "data/lol_ranked_dataset.csv",
+  delim          = ";",
+  locale         = locale(decimal_mark = ","),
+  show_col_types = FALSE
+)
+
+pro <- read_delim(
+  "data/lol_pro_scene_dataset.csv",
+  delim          = ";",
+  locale         = locale(decimal_mark = ","),
+  show_col_types = FALSE
+)
+```
+
+On construit ensuite des jeux de données harmonisés. Le rôle `UTILITY` est renommé `SUPP` dans les comparaisons pour améliorer la lisibilité. Les KDA extrêmes au-dessus de 20 sont retirés uniquement pour les visualisations de distribution, car ils écrasent l'échelle sans changer la tendance générale.
+
+```{r preparation-generale}
+role_levels <- c("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "SUPP")
+
+soloq_res <- soloq %>%
+  mutate(
+    resultat = factor(win, levels = c(0, 1), labels = c("Défaite", "Victoire")),
+    role_std = recode(role, "UTILITY" = "SUPP"),
+    role_std = factor(role_std, levels = role_levels)
+  )
+
+pro_res <- pro %>%
+  mutate(
+    resultat = factor(win, levels = c(0, 1), labels = c("Défaite", "Victoire")),
+    role_std = recode(role, "UTILITY" = "SUPP"),
+    role_std = factor(role_std, levels = role_levels),
+    duree_min = game_duration / 60
+  )
+
+combined <- bind_rows(
+  soloq %>% transmute(contexte = "SoloQ", role, win, kills, deaths,
+                      assists, kda, gold, cs, vision, game_duration),
+  pro   %>% transmute(contexte = "Pro",   role, win, kills, deaths,
+                      assists, kda, gold, cs, vision, game_duration)
+) %>%
+  mutate(
+    contexte = factor(contexte, levels = c("SoloQ", "Pro")),
+    role     = recode(role, "UTILITY" = "SUPP"),
+    role     = factor(role, levels = role_levels),
+    resultat = factor(win, levels = c(0, 1), labels = c("Défaite", "Victoire")),
+    duree_min = game_duration / 60
+  )
+
+combined_clean <- combined %>% filter(!is.na(kda), kda <= 20)
+```
+
+\newpage
+
+# Axe 1 : la performance individuelle en SoloQ
+
+En SoloQ, la victoire repose davantage sur l'impact individuel et sur la capacité à limiter ses erreurs. Les questions suivantes cherchent donc à identifier les variables qui distinguent le plus clairement les gagnants des perdants.
+
+
+## Q1 — Quel facteur individuel pèse le plus sur la victoire en SoloQ ?
+
+**Objectif de l’analyse.** On calcule la corrélation entre la victoire et plusieurs facteurs individuels : KDA, assists, kills, gold, damage, CS, vision, wards et deaths. Cette visualisation reprend l'esprit de la slide SoloQ corrigée : les barres sont volontairement en rouge pour marquer le contexte SoloQ.
+
+```{r q1-correlation-soloq}
+cor_soloq_mat <- soloq %>%
+  transmute(
+    win_num = as.integer(win),
+    KDA     = kda,
+    Assists = assists,
+    Kills   = kills,
+    Gold    = gold,
+    Damage  = damage,
+    CS      = cs,
+    Vision  = vision,
+    Wards   = wards_placed,
+    Deaths  = deaths
+  ) %>%
+  cor(use = "complete.obs")
+
+cor_soloq_df <- tibble(
+  variable = rownames(cor_soloq_mat),
+  correlation = cor_soloq_mat[, "win_num"]
+) %>%
+  filter(variable != "win_num") %>%
+  mutate(variable = factor(variable, levels = variable[order(correlation)]))
+
+ggplot(cor_soloq_df, aes(x = variable, y = correlation)) +
+  geom_col(fill = col_contexte["SoloQ"], width = 0.68) +
+  geom_hline(yintercept = 0, color = "gray35") +
+  geom_text(aes(label = sprintf("%+.2f", correlation),
+                hjust = ifelse(correlation > 0, -0.15, 1.15)), size = 3.5) +
+  coord_flip() +
+  scale_y_continuous(limits = c(-0.6, 0.6)) +
+  labs(
+    title    = "Corrélation des facteurs individuels avec la victoire (SoloQ)",
+    subtitle = "Plus la valeur est élevée, plus le facteur est lié à la victoire",
+    x = NULL, y = "Corrélation avec la victoire",
+    caption = "Source : Riot Games API"
+  )
+```
+
+**Analyse des résultats.** Le KDA domine largement les autres facteurs, avec une corrélation proche de +0,51. Les assists et les kills suivent, ce qui montre que le combat reste central dans l'issue d'une partie SoloQ. Le gold est également positif, mais moins discriminant que le KDA. À l'inverse, les deaths sont fortement négatives, autour de -0,41 : mourir beaucoup est l'un des signaux les plus nets d'une défaite. La vision, les wards et le CS sont presque neutres à l'échelle individuelle, ce qui ne veut pas dire qu'ils sont inutiles, mais qu'ils expliquent moins directement l'issue d'une partie SoloQ.
+
+
+\newpage
+
+## Q2 — Le KDA sépare-t-il clairement les vainqueurs et les vaincus en SoloQ ?
+
+**Objectif de l’analyse.** Le KDA combine efficacité offensive et survie. Pour savoir s'il différencie réellement gagnants et perdants, on compare sa distribution selon l'issue de la partie. Cette figure remplace la version ambiguë précédente et reprend bien le contexte SoloQ.
+
+```{r q2-kda-box-soloq}
+soloq_kda <- soloq_res %>% filter(!is.na(kda), kda <= 20)
+
+ggplot(soloq_kda, aes(x = resultat, y = kda, fill = resultat)) +
+  geom_boxplot(outlier.alpha = 0.12, width = 0.58, color = "gray25") +
+  stat_summary(fun = median, geom = "point", size = 2.4, color = "black") +
+  scale_fill_manual(values = col_kda_soloq) +
+  coord_cartesian(ylim = c(0, 12.5)) +
+  labs(
+    title    = "Distribution du KDA — vainqueurs vs vaincus (SoloQ)",
+    subtitle = "Le facteur le plus discriminant, de loin",
+    x = NULL, y = "KDA",
+    caption = "Source : Riot Games API"
+  ) +
+  theme(legend.position = "none")
+```
+
+**Analyse des résultats.** Le KDA médian est nettement plus élevé chez les vainqueurs que chez les perdants : on observe environ 4,2 côté victoire contre 1,5 côté défaite. Les deux boîtes ne se chevauchent presque pas dans leur zone centrale, ce qui confirme que le KDA est très discriminant. Il faut néanmoins rester prudent : le KDA reflète aussi une partie déjà dominée. Il est donc à la fois un indicateur de performance individuelle et une conséquence de la dynamique collective.
+
+
+\newpage
+
+## Q3 — Le taux de victoire augmente-t-il par tranche de KDA ?
+
+**Objectif de l’analyse.** Le boxplot précédent montre une séparation entre gagnants et perdants, mais il ne donne pas directement la probabilité de gagner selon le niveau de KDA. On regroupe donc les joueurs par tranches de KDA et on calcule le taux de victoire dans chaque tranche.
+
+```{r q3-kda-winrate-soloq}
+kda_winrate <- soloq %>%
+  filter(!is.na(kda), kda <= 20) %>%
+  mutate(tranche_kda = cut(kda, breaks = c(0, 1, 2, 3, 4, 5, 7, 10, 20),
+                           include.lowest = TRUE, right = FALSE)) %>%
+  group_by(tranche_kda) %>%
+  summarise(winrate = mean(win, na.rm = TRUE), n = n(), .groups = "drop")
+
+ggplot(kda_winrate, aes(x = tranche_kda, y = winrate, fill = winrate)) +
+  geom_col(width = 0.7, color = "white") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray45") +
+  geom_text(aes(label = percent(winrate, accuracy = 1)), vjust = -0.35, size = 3.2) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  scale_fill_gradient(low = col_issue["Défaite"], high = col_issue["Victoire"]) +
+  labs(
+    title    = "Taux de victoire selon le niveau de KDA (SoloQ)",
+    subtitle = "Chaque barre regroupe les joueurs d'une tranche de KDA",
+    x = "Tranche de KDA", y = "Taux de victoire"
+  ) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1), legend.position = "none")
+```
+
+**Analyse des résultats.** Le taux de victoire progresse nettement avec le KDA. Sous les premières tranches, il reste sous ou autour de 50 %, puis il augmente rapidement dès que le KDA dépasse les seuils élevés. Cette progression confirme que le KDA est utile pour lire la performance individuelle, mais elle ne prouve pas une causalité pure : un joueur peut avoir un bon KDA parce que son équipe gagne déjà.
+
+
+\newpage
+
+## Q4 — La survie influence-t-elle la victoire en SoloQ ?
+
+**Objectif de l’analyse.** Mourir donne de l'or et du tempo à l'adversaire, ouvre la carte et empêche de participer aux objectifs. On compare donc la distribution du nombre de morts entre victoires et défaites.
+
+```{r q4-deaths-soloq}
+soloq_res %>%
+  ggplot(aes(x = resultat, y = deaths, fill = resultat)) +
+  geom_violin(alpha = 0.4, trim = TRUE) +
+  geom_boxplot(width = 0.12, outlier.alpha = 0, color = "black", linewidth = 0.5) +
+  scale_fill_manual(values = col_issue) +
+  coord_cartesian(ylim = c(0, 20)) +
+  labs(
+    title    = "Distribution des morts selon le résultat (SoloQ)",
+    subtitle = "Le boxplot interne indique la médiane et les quartiles",
+    x = "Résultat", y = "Nombre de morts"
+  ) +
+  theme(legend.position = "none")
+```
+
+**Analyse des résultats.** Les perdants meurent davantage, avec une distribution beaucoup plus étalée vers les valeurs hautes. Les gagnants se concentrent autour de quelques morts, tandis que les parties à 8, 10 ou 15 morts apparaissent surtout du côté des défaites. La survie est donc fortement associée à la victoire, mais comme pour le KDA, la causalité fonctionne dans les deux sens : on meurt parce qu'on perd, et on perd davantage parce qu'on meurt.
+
+
+\newpage
+
+## Q5 — Les rôles ont-ils des profils de combat différents en SoloQ ?
+
+**Objectif de l’analyse.** Chaque rôle a une fonction sur la carte. On compare les moyennes de kills, deaths et assists pour vérifier si cette spécialisation se lit dans les statistiques.
+
+```{r q5-combat-role-soloq}
+combat_role <- soloq_res %>%
+  group_by(role_std) %>%
+  summarise(across(c(kills, deaths, assists), ~ mean(.x, na.rm = TRUE)),
+            .groups = "drop") %>%
+  pivot_longer(c(kills, deaths, assists),
+               names_to = "statistique", values_to = "moyenne")
+
+ggplot(combat_role, aes(x = role_std, y = moyenne, fill = statistique)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.68, color = "white") +
+  geom_text(aes(label = round(moyenne, 1)),
+            position = position_dodge(width = 0.75), vjust = -0.35, size = 3.2) +
+  scale_fill_manual(values = c("kills" = "#D1495B", "deaths" = "#4C78A8",
+                               "assists" = "#3CA370"),
+                    labels = c("kills" = "Kills", "deaths" = "Deaths",
+                               "assists" = "Assists")) +
+  expand_limits(y = max(combat_role$moyenne) + 2) +
+  labs(
+    title    = "Profil de combat moyen selon le rôle (SoloQ)",
+    subtitle = "Kills, deaths et assists moyens par partie",
+    x = "Rôle", y = "Moyenne par partie", fill = "Statistique"
+  )
+```
+
+**Analyse des résultats.** Les rôles ne contribuent pas au combat de la même façon. Les supports se distinguent par les assists, tandis que les rôles carry comme BOTTOM et MIDDLE sont plus orientés vers les kills et les dégâts. Cette première lecture confirme que les statistiques doivent toujours être interprétées en tenant compte de la fonction du joueur.
+
+
+\newpage
+
+## Q6 — Le KDA varie-t-il selon le rôle en SoloQ ?
+
+**Objectif de l’analyse.** Après avoir montré que les rôles ont des profils de combat différents, on regarde si cela se traduit par des distributions de KDA différentes.
+
+```{r q6-kda-role-soloq}
+soloq_kda %>%
+  ggplot(aes(x = role_std, y = kda, fill = role_std)) +
+  geom_boxplot(outlier.alpha = 0.15, show.legend = FALSE, width = 0.62, color = "gray25") +
+  stat_summary(fun = median, geom = "point", size = 2.2, color = "black") +
+  coord_cartesian(ylim = c(0, 10)) +
+  scale_fill_manual(values = col_role) +
+  labs(
+    title = "Distribution du KDA selon le rôle (SoloQ)",
+    subtitle = "Le KDA compare l'efficacité globale et la stabilité relative des rôles",
+    x = "Rôle", y = "KDA"
+  )
+```
+
+**Analyse des résultats.** Les junglers et supports affichent souvent des KDA plus élevés, car ils participent à beaucoup d'actions collectives et accumulent des assists. Le top apparaît plus exposé, avec une distribution plus basse. Le KDA ne mesure donc pas la même chose pour tous les rôles : un support peut obtenir un très bon ratio via les assists, tandis qu'un top peut être utile en absorbant la pression malgré un KDA plus faible.
+
+
+\newpage
+
+## Q7 — Peut-on résumer la signature statistique de chaque rôle en SoloQ ?
+
+**Objectif de l’analyse.** Pour dépasser une statistique isolée, on construit un profil standardisé par rôle sur six dimensions : kills, assists, deaths, CS, dégâts et vision. Chaque valeur indique l'écart du rôle à la moyenne du dataset.
+
+```{r q7-profils-standardises-soloq, fig.height=5}
+profil_roles <- soloq_res %>%
+  group_by(role_std) %>%
+  summarise(kills = mean(kills, na.rm = TRUE), assists = mean(assists, na.rm = TRUE),
+            deaths = mean(deaths, na.rm = TRUE), cs = mean(cs, na.rm = TRUE),
+            damage = mean(damage, na.rm = TRUE), vision = mean(vision, na.rm = TRUE),
+            .groups = "drop") %>%
+  pivot_longer(c(kills, assists, deaths, cs, damage, vision),
+               names_to = "indicateur", values_to = "valeur") %>%
+  mutate(indicateur = recode(indicateur, kills = "Kills", assists = "Assists",
+                             deaths = "Deaths", cs = "Farming",
+                             damage = "Dégâts", vision = "Vision")) %>%
+  group_by(indicateur) %>%
+  mutate(score = as.numeric(scale(valeur))) %>%
+  ungroup() %>%
+  mutate(indicateur = factor(indicateur,
+                             levels = c("Kills", "Assists", "Deaths", "Farming", "Dégâts", "Vision")))
+
+ggplot(profil_roles, aes(x = indicateur, y = score, group = role_std, color = role_std)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray55") +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.8) +
+  scale_color_manual(values = col_role) +
+  labs(
+    title    = "Profils standardisés des rôles (SoloQ)",
+    subtitle = "Chaque point mesure l'écart à la moyenne du dataset pour une métrique",
+    x = NULL, y = "Score standardisé", color = "Rôle"
+  ) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1))
+```
+
+**Analyse des résultats.** Chaque rôle dessine une trajectoire propre. Le support est très au-dessus de la moyenne en assists et vision, mais très bas en farming et dégâts. Le bottom suit presque l'inverse, avec une forte présence sur le farm et les dégâts. Cette visualisation confirme que les rôles ne se différencient pas par une seule statistique, mais par une combinaison cohérente de forces et de faiblesses.
+
+
+\newpage
+
+# Axe 2 : stratégie et jeu professionnel
+
+La scène professionnelle ajoute des dimensions plus collectives : early game mesuré minute par minute, objectifs neutres, vision coordonnée et répartition des ressources. Les questions suivantes se concentrent sur ces mécanismes.
+
+
+## Q8 — L'early game brut est-il déterminant en pro ?
+
+**Objectif de l’analyse.** On commence par la variable `goldat10`, qui mesure la quantité brute de gold obtenue à 10 minutes. On compare les distributions entre victoires et défaites, puis on nuance car le gold brut dépend fortement du rôle.
+
+```{r q8-goldat10-pro}
+pro_gold10 <- pro_res %>% filter(!is.na(goldat10))
+
+ggplot(pro_gold10, aes(x = resultat, y = goldat10, fill = resultat)) +
+  geom_violin(alpha = 0.35, trim = FALSE, color = "gray35") +
+  geom_boxplot(width = 0.16, outlier.alpha = 0.08, color = "gray20") +
+  stat_summary(fun = median, geom = "point", size = 2.3, color = "black") +
+  scale_fill_manual(values = col_issue) +
+  labs(
+    title = "Gold à 10 minutes selon le résultat (Pro)",
+    subtitle = "Comparaison des joueurs professionnels victorieux et vaincus",
+    x = "Résultat", y = "Gold à 10 minutes"
+  ) +
+  theme(legend.position = "none")
+```
+
+**Analyse des résultats.** Les joueurs victorieux ont une distribution de `goldat10` légèrement décalée vers le haut. Le début de partie est donc bien associé à la victoire. L'effet reste toutefois modéré car le gold brut mélange performance et rôle : un support et un carry n'ont pas la même quantité normale de ressources. Il faut donc compléter par l'écart direct avec l'adversaire.
+
+
+\newpage
+
+## Q9 — L'avantage de gold à 10 minutes détermine-t-il la partie ?
+
+**Objectif de l’analyse.** L'écart de gold à 10 minutes (`golddiffat10`) mesure l'avance d'un joueur sur son adversaire direct. On observe la distribution cumulée selon l'issue, puis le taux de victoire par tranche d'écart.
+
+```{r q9-winrate-golddiff-simple}
+pro_bins_simple <- pro %>%
+  filter(!is.na(golddiffat10)) %>%
+  mutate(tranche = cut(golddiffat10,
+    breaks = c(-Inf, -1500, -500, 0, 500, 1500, Inf),
+    labels = c("Gros retard", "Retard", "Léger retard",
+               "Légère avance", "Avance", "Grosse avance"),
+    include.lowest = TRUE
+  )) %>%
+  group_by(tranche) %>%
+  summarise(winrate = mean(win, na.rm = TRUE), n = n(), .groups = "drop")
+
+ggplot(pro_bins_simple, aes(x = tranche, y = winrate)) +
+  geom_col(fill = col_contexte["Pro"], width = 0.68) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray40") +
+  geom_text(aes(label = percent(winrate, accuracy = 1)), vjust = -0.35, size = 3.4) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title    = "Winrate selon le gold diff @10",
+    subtitle = "Lecture simplifiée par grands niveaux d'avance ou de retard",
+    x = "Situation à 10 minutes", y = "Taux de victoire"
+  ) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1))
+```
+
+**Analyse des résultats.** La lecture simplifiée montre une progression claire : plus le joueur est en avance économiquement à 10 minutes, plus le taux de victoire augmente. Autour de l'équilibre, le résultat reste incertain ; dès que l'avance devient importante, la probabilité de victoire monte fortement. L'early game pèse donc beaucoup, sans être totalement déterministe.
+
+
+\newpage
+
+## Q10 — L'impact de l'écart de gold à 10 minutes varie-t-il selon le rôle ?
+
+**Objectif de l’analyse.** Une avance de 500 gold ne signifie pas la même chose pour un support et pour un carry. On décompose donc `golddiffat10` par rôle afin de voir où l'écart entre victoires et défaites est le plus marqué.
+
+```{r q10-golddiff-role-pro-simple}
+role_golddiff <- pro_res %>%
+  filter(!is.na(golddiffat10)) %>%
+  group_by(role_std, resultat) %>%
+  summarise(median_diff = median(golddiffat10, na.rm = TRUE), .groups = "drop")
+
+ggplot(role_golddiff, aes(x = role_std, y = median_diff, fill = resultat)) +
+  geom_col(position = position_dodge(width = 0.72), width = 0.62) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray35") +
+  geom_text(aes(label = round(median_diff, 0),
+                vjust = ifelse(median_diff >= 0, -0.35, 1.25)),
+            position = position_dodge(width = 0.72),
+            size = 3.2) +
+  scale_fill_manual(values = col_issue) +
+  labs(
+    title = "Gold diff @10 médian par rôle",
+    subtitle = "Comparaison simple entre victoires et défaites",
+    x = "Rôle", y = "Gold diff @10 médian", fill = "Issue"
+  )
+```
+
+**Analyse des résultats.** Le graphique garde uniquement l'information essentielle : les joueurs victorieux ont un gold diff médian supérieur à celui des vaincus sur chaque rôle. L'écart est plus visible sur les rôles qui concentrent les ressources, notamment MIDDLE et BOTTOM, tandis que le support reste moins dépendant de son avantage économique individuel.
+
+
+\newpage
+
+## Q11 — Certains rôles disposent-ils structurellement de plus de ressources en pro ?
+
+**Objectif de l’analyse.** On étudie la répartition des ressources économiques entre rôles avec `gold_per_min`, disponible dans le dataset professionnel. Cette question correspond à l'analyse économique de Nezar, intégrée ici avec la palette harmonisée.
+
+```{r q11-gpm-role-pro}
+role_economy <- pro_res %>%
+  group_by(role_std) %>%
+  summarise(gold_per_min = mean(gold_per_min, na.rm = TRUE), .groups = "drop") %>%
+  arrange(gold_per_min)
+
+ggplot(role_economy, aes(x = reorder(role_std, gold_per_min), y = gold_per_min, fill = role_std)) +
+  geom_col(show.legend = FALSE, width = 0.7) +
+  geom_text(aes(label = round(gold_per_min, 0)), hjust = -0.15, size = 4) +
+  coord_flip() +
+  scale_fill_manual(values = col_role) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = "Gold moyen gagné par minute selon le rôle (Pro)",
+    subtitle = "La répartition des ressources dépend fortement de la fonction du joueur",
+    x = "Rôle", y = "Gold par minute",
+    caption = "Source : Oracle's Elixir"
+  )
+```
+
+**Analyse des résultats.** Les rôles carry disposent naturellement de plus de ressources, car ils récupèrent davantage de farm et sont souvent les destinataires des investissements de l'équipe. Le support se situe logiquement en bas du classement. Cette structure explique pourquoi certaines variables brutes, comme le gold total ou le CS, ne peuvent pas être comparées sans tenir compte du rôle.
+
+
+\newpage
+
+## Q12 — Les objectifs, notamment les barons, influencent-ils la victoire en pro ?
+
+**Objectif de l’analyse.** Le baron Nashor est l'un des objectifs les plus puissants de la carte. Dans ce dataset, les variables `dragons`, `heralds` et `towers` sont entièrement manquantes ; l'analyse se concentre donc sur les barons. On croise le taux de victoire avec les effectifs pour éviter les conclusions trompeuses.
+
+```{r q12-barons-pro}
+pro_barons <- pro %>%
+  filter(!is.na(barons)) %>%
+  mutate(barons = as.integer(barons)) %>%
+  group_by(barons) %>%
+  summarise(winrate = mean(win, na.rm = TRUE) * 100, n = n(), .groups = "drop")
+
+ggplot(pro_barons, aes(x = factor(barons), y = winrate, fill = winrate)) +
+  geom_col(width = 0.6) +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "grey40") +
+  geom_text(aes(label = paste0(round(winrate, 1), "%")), vjust = -0.5, size = 4) +
+  scale_fill_gradient(low = col_issue["Défaite"], high = col_issue["Victoire"]) +
+  scale_y_continuous(limits = c(0, 110)) +
+  labs(
+    title    = "Taux de victoire selon le nombre de barons pris (Pro)",
+    subtitle = "La ligne pointillée indique le seuil de 50 %",
+    x = "Nombre de barons", y = "Taux de victoire (%)"
+  ) +
+  theme(legend.position = "none")
+```
+
+```{r q12-barons-table}
+pro_barons %>%
+  mutate(winrate = round(winrate, 1)) %>%
+  rename("Barons" = barons, "Taux de victoire (%)" = winrate,
+         "Nombre de parties" = n) %>%
+  kable()
+```
+
+**Analyse des résultats.** La progression entre 0 et 2 barons est nette : prendre un baron est fortement associé à la victoire. Au-delà de 2, les effectifs deviennent très faibles et doivent être interprétés avec prudence. Une partie à 3 ou 4 barons est souvent une partie anormalement longue, où l'équipe en avance n'a pas réussi à conclure rapidement. Le baron reste donc un marqueur de domination, mais les cas extrêmes ne doivent pas être surinterprétés.
+
+
+\newpage
+
+## Q13 — Quel est le profil statistique d'un joueur gagnant en pro ?
+
+Cette question regroupe l'ensemble de la partie de Fadi sur le profil du joueur gagnant en scène professionnelle. L'idée n'est pas seulement d'afficher une visualisation isolée, mais de construire une lecture progressive : d'abord un tableau descriptif, puis un radar de synthèse, puis un graphique de corrélation pour hiérarchiser les variables.
+
+### Tableau synthétique — gagnants contre perdants
+
+**Objectif de l’analyse.** Avant de passer aux graphiques, on commence par un tableau simple qui compare directement les moyennes des joueurs victorieux et vaincus. Cette étape sert de point de départ : elle permet de voir rapidement sur quelles variables les deux groupes s'écartent le plus. On s'attend à observer un écart net sur les variables de combat, notamment le KDA et les kills, tandis que les variables plus dépendantes du rôle, comme le CS ou la vision, devraient être plus proches.
+
+```{r q13-tableau-profil-fadi}
+pro_clean <- pro %>%
+  select(win, kills, deaths, kda, gold, cs, vision,
+         kill_participation, golddiffat10) %>%
+  filter(!is.na(golddiffat10))
+
+profils_moyens <- pro_clean %>%
+  mutate(issue = factor(ifelse(win == 1, "Victoire", "Défaite"),
+                        levels = c("Victoire", "Défaite"))) %>%
+  group_by(issue) %>%
+  summarise(
+    Kills = round(mean(kills, na.rm = TRUE), 2),
+    KDA = round(mean(kda, na.rm = TRUE), 2),
+    Gold = round(mean(gold, na.rm = TRUE), 2),
+    CS = round(mean(cs, na.rm = TRUE), 2),
+    Vision = round(mean(vision, na.rm = TRUE), 2),
+    `Kill Part. (%)` = round(mean(kill_participation, na.rm = TRUE) * 100, 2),
+    .groups = "drop"
+  )
+
+profil_tableau <- profils_moyens %>%
+  pivot_longer(-issue, names_to = "Variable", values_to = "Valeur") %>%
+  pivot_wider(names_from = issue, values_from = Valeur) %>%
+  select(Variable, Victoire, Défaite)
+
+kable(profil_tableau, align = c("l", "r", "r"))
+```
+
+**Analyse des résultats.** Le tableau montre immédiatement que les gagnants ont des valeurs supérieures sur presque toutes les dimensions. L'écart le plus frappant concerne le KDA : les joueurs victorieux ont un KDA moyen beaucoup plus élevé que les joueurs vaincus. Les kills et le gold sont également nettement supérieurs, ce qui traduit une meilleure capacité à convertir les combats et les ressources en avantage. À l'inverse, le CS, la vision et la participation aux kills restent plus proches. Ces variables ne sont donc pas inutiles, mais elles séparent moins directement les gagnants des perdants car elles dépendent fortement du rôle et du déroulement collectif de la partie.
+
+### Visualisation 1 — Profil normalisé gagnants vs perdants
+
+**Objectif de l’analyse.** Le tableau donne des valeurs exactes, mais les variables n'ont pas toutes la même échelle : le gold se compte en milliers, le KDA en unités, et la participation aux kills en pourcentage. On utilise donc un graphique normalisé pour rendre les métriques comparables visuellement. L'objectif est de vérifier si le profil des vainqueurs reste supérieur après normalisation, et de voir quelles dimensions ressortent le plus.
+
+```{r q13-profil-gagnant-pro}
+profils <- profils_moyens %>%
+  pivot_longer(-issue, names_to = "metrique", values_to = "valeur") %>%
+  group_by(metrique) %>%
+  mutate(valeur_norm = valeur / max(valeur)) %>%
+  ungroup()
+
+ggplot(profils, aes(x = metrique, y = valeur_norm, fill = issue)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(values = col_issue) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1.05)) +
+  labs(
+    title    = "Profil normalisé : gagnants vs perdants (Pro)",
+    subtitle = "Chaque métrique est ramenée à son maximum pour comparaison",
+    x = NULL, y = "Valeur (en % du maximum)", fill = "Issue"
+  ) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1))
+```
+
+**Analyse des résultats.** Le graphique confirme la lecture du tableau : les gagnants sont supérieurs sur presque toutes les dimensions. L'écart est surtout visible sur le KDA et les kills, ce qui indique que la capacité à participer efficacement aux combats est très liée à la victoire. Le gold suit également cette tendance, car une équipe qui gagne accumule généralement plus de ressources. En revanche, le CS et la vision restent moins discriminants. Cette nuance est importante : un joueur peut remplir correctement son rôle en vision ou en farm sans que cela suffise à expliquer directement la victoire.
+
+### Visualisation 2 — Profil radar du joueur gagnant
+
+**Objectif de l’analyse.** Le radar réalisé par Fadi propose une lecture plus synthétique du profil statistique. Contrairement au graphique précédent, il permet d'observer en une seule forme l'ensemble des dimensions : kills, participation aux kills, vision, CS, gold et KDA. On l'utilise ici comme une visualisation de synthèse, pour vérifier si la surface associée aux vainqueurs domine bien celle des vaincus.
+
+```{r q13-radar-fadi-image, out.width="72%", fig.align="center"}
+knitr::include_graphics("assets/viz_fadi_correct.png")
+```
+
+**Analyse des résultats.** La surface bleue des vainqueurs est globalement plus large que celle des vaincus, ce qui confirme l'idée d'un profil gagnant plus complet. L'écart est particulièrement visible sur le KDA et les kills, ce qui rejoint les observations précédentes. En revanche, la vision et le CS restent plus proches, ce qui montre que ces variables ne suffisent pas seules à séparer les gagnants des perdants. Le radar est donc utile pour une vision globale, mais il reste moins précis qu'un tableau ou un graphique de corrélation : il sert surtout à résumer visuellement la structure du profil.
+
+### Visualisation 3 — Variables les plus corrélées à la victoire
+
+**Objectif de l’analyse.** Après le tableau et le radar, on cherche à quantifier plus précisément le lien entre chaque variable et la victoire. Cette dernière visualisation classe les variables selon leur corrélation avec l'issue de la partie. Les variables positivement corrélées sont en bleu, tandis que `Deaths` apparaît en rouge car elle est négativement corrélée à la victoire. L'objectif est de distinguer les variables réellement discriminantes des variables seulement descriptives du rôle ou du contexte de partie.
+
+```{r q13-corr-pro-fadi}
+cor_win <- pro_clean %>%
+  mutate(win_num = as.integer(win)) %>%
+  select(win_num, kills, deaths, kda, gold, cs, vision,
+         kill_participation, golddiffat10) %>%
+  cor(use = "complete.obs")
+
+cor_df <- tibble(variable = rownames(cor_win),
+                 correlation = cor_win[, "win_num"]) %>%
+  filter(variable != "win_num") %>%
+  mutate(
+    variable = recode(variable, kills = "Kills", deaths = "Deaths",
+                      kda = "KDA", gold = "Gold", cs = "CS", vision = "Vision",
+                      kill_participation = "Kill Part.",
+                      golddiffat10 = "Gold diff @10"),
+    signe = ifelse(correlation >= 0, "Positif", "Négatif"),
+    variable = factor(variable, levels = variable[order(correlation)])
+  )
+
+ggplot(cor_df, aes(x = variable, y = correlation, fill = signe)) +
+  geom_col(width = 0.62) +
+  geom_text(aes(label = round(correlation, 2),
+                hjust = ifelse(correlation > 0, -0.2, 1.2)), size = 3.6) +
+  geom_hline(yintercept = 0, color = "grey40") +
+  coord_flip() +
+  scale_fill_manual(values = col_corr_pro) +
+  scale_y_continuous(limits = c(-0.6, 0.75)) +
+  labs(
+    title    = "Corrélation des variables avec la victoire (Pro)",
+    subtitle = "Bleu = corrélation positive ; rouge = corrélation négative",
+    x = NULL, y = "Corrélation avec la victoire",
+    caption = "Source : Oracle's Elixir"
+  ) +
+  theme(legend.position = "none")
+```
+
+**Analyse des résultats.** Le KDA est la variable la plus corrélée positivement à la victoire, autour de +0,65. Les kills, le gold et l'écart de gold à 10 minutes suivent, mais avec un poids plus faible. Les deaths sont fortement négatives, autour de -0,53 : mourir beaucoup est donc l'un des signaux les plus associés à la défaite. Cette dernière visualisation nuance le tableau et le radar : elle montre que toutes les variables du profil gagnant ne pèsent pas de la même manière. Le profil gagnant est donc surtout marqué par l'efficacité en combat, la survie et l'avance économique, tandis que la vision et le CS restent des variables utiles mais moins directement discriminantes.
+
+
+\newpage
+
+## Q14 — L'investissement en vision garantit-il la victoire ?
+
+**Objectif de l’analyse.** On regroupe les joueurs par tranches de wards posées et on compare le taux de victoire en SoloQ et en pro. L'objectif est de voir si la vision agit comme un indicateur direct de victoire ou plutôt comme un signal indirect.
+
+```{r q15-vision-winrate}
+vision_win <- bind_rows(
+  pro   %>% transmute(contexte = "Pro",   win, wards = wardsplaced),
+  soloq %>% transmute(contexte = "SoloQ", win, wards = wards_placed)
+) %>%
+  mutate(contexte = factor(contexte, levels = c("SoloQ", "Pro"))) %>%
+  filter(!is.na(wards), wards <= 60) %>%
+  mutate(ward_interval = cut(wards, breaks = seq(0, 60, by = 10), include.lowest = TRUE)) %>%
+  filter(!is.na(ward_interval)) %>%
+  group_by(contexte, ward_interval) %>%
+  summarise(win_rate = mean(win, na.rm = TRUE), n = n(), .groups = "drop")
+
+ggplot(vision_win, aes(x = ward_interval, y = win_rate, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.68) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", alpha = 0.6) +
+  scale_fill_manual(values = col_contexte) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title = "Taux de victoire selon le nombre de wards posées",
+    subtitle = "La vision est utile, mais son lien avec la victoire reste indirect",
+    x = "Nombre de wards", y = "Taux de victoire", fill = "Contexte"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+**Analyse des résultats.** Une tendance positive peut apparaître, surtout en SoloQ, mais elle doit être lue avec prudence. Les équipes qui gagnent contrôlent davantage la carte et posent donc plus de wards ; la vision peut être une cause de l'avantage, mais aussi une conséquence de la domination. Elle ne garantit pas seule la victoire.
+
+
+\newpage
+
+## Q15 — La vision du support crée-t-elle un avantage économique à 15 minutes ?
+
+**Objectif de l’analyse.** Pour tester l'idée d'un snowball par la vision, on observe en pro la relation entre l'intensité de vision du support (`wardsplaced / durée`) et l'écart de gold à 15 minutes (`golddiffat15`).
+
+```{r q16-vision-snowball-pro}
+df_early_pro <- pro %>%
+  filter(role == "UTILITY", !is.na(golddiffat15), !is.na(wardsplaced)) %>%
+  mutate(
+    duration_min = game_duration / 60,
+    wpm = wardsplaced / duration_min
+  )
+
+ggplot(df_early_pro, aes(x = wpm, y = golddiffat15)) +
+  geom_point(alpha = 0.2, color = col_contexte["Pro"]) +
+  geom_smooth(method = "lm", color = col_contexte["Pro"], linewidth = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray45") +
+  labs(
+    title = "Impact de la vision du support sur l'avantage de gold à 15 minutes",
+    subtitle = "Analyse sur la scène professionnelle uniquement",
+    x = "Intensité de vision du support (wards par minute)",
+    y = "Gold diff à 15 minutes"
+  )
+```
+
+**Analyse des résultats.** La droite de tendance est presque plate et le nuage de points reste très dispersé. L'intensité globale de vision du support ne suffit donc pas à expliquer l'avance économique à 15 minutes. La limite principale vient de la métrique : le WPM est calculé sur toute la partie, alors que `golddiffat15` capture seulement l'early game. La vision sert surtout à sécuriser et coordonner la carte, pas à produire automatiquement du gold.
+
+
+\newpage
+
+# Axe 3 : SoloQ contre scène professionnelle
+
+On compare maintenant directement les deux environnements pour distinguer les différences de niveau, de régularité et de structuration.
+
+
+## Q16 — Le KDA est-il plus élevé en pro qu'en SoloQ ?
+
+**Objectif de l’analyse.** Les pros sont meilleurs individuellement, mais le KDA dépend du rôle et du style de jeu. On compare donc la densité du KDA dans les deux contextes, puis on décompose par rôle.
+
+```{r q17-kda-density-compare}
+medianes <- combined_clean %>%
+  group_by(contexte) %>%
+  summarise(med = median(kda), .groups = "drop")
+
+ggplot(combined_clean, aes(x = kda, fill = contexte, color = contexte)) +
+  geom_density(alpha = 0.35, linewidth = 0.8) +
+  geom_vline(data = medianes, aes(xintercept = med, color = contexte),
+             linetype = "dashed", linewidth = 0.9) +
+  scale_fill_manual(values = col_contexte) +
+  scale_color_manual(values = col_contexte) +
+  coord_cartesian(xlim = c(0, 15)) +
+  labs(
+    title    = "Densité du KDA : SoloQ vs Pro",
+    subtitle = "Les lignes pointillées indiquent les médianes de chaque groupe",
+    x = "KDA", y = "Densité", fill = "Contexte", color = "Contexte"
+  )
+```
+
+```{r q17-kda-role-compare}
+combined_clean %>%
+  group_by(contexte, role) %>%
+  summarise(kda_med = median(kda, na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = role, y = kda_med, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.6), width = 0.5) +
+  geom_text(aes(label = round(kda_med, 1)),
+            position = position_dodge(width = 0.6), vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = col_contexte) +
+  scale_y_continuous(limits = c(0, 6)) +
+  labs(
+    title    = "KDA médian par rôle : SoloQ vs Pro",
+    subtitle = "Le rôle SUPP explique en grande partie la variance plus élevée en pro",
+    x = "Rôle", y = "KDA médian", fill = "Contexte"
+  )
+```
+
+**Analyse des résultats.** Le KDA est légèrement plus élevé en pro, mais l'écart global reste moins massif qu'attendu. La vraie différence vient de la spécialisation des rôles : certains rôles professionnels, surtout support, affichent un KDA plus élevé grâce aux assists et à une meilleure gestion du risque. La variance pro ne signifie donc pas un jeu plus désordonné, mais une spécialisation plus extrême.
+
+
+\newpage
+
+## Q17 — Les joueurs professionnels meurent-ils moins ?
+
+**Objectif de l’analyse.** Une meilleure coordination devrait réduire les morts évitables. On compare donc le nombre de morts dans les deux contextes, avec la moyenne marquée par un losange.
+
+```{r q18-deaths-compare}
+combined %>%
+  ggplot(aes(x = contexte, y = deaths, fill = contexte)) +
+  geom_boxplot(alpha = 0.85, outlier.alpha = 0.15, width = 0.55) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = "black") +
+  scale_fill_manual(values = col_contexte) +
+  coord_cartesian(ylim = c(0, 15)) +
+  labs(
+    title    = "Nombre de morts selon le contexte de jeu",
+    subtitle = "Le losange noir représente la moyenne",
+    x = "Contexte de jeu", y = "Nombre de morts", fill = "Contexte"
+  )
+```
+
+```{r q18-deaths-table}
+combined %>%
+  group_by(contexte) %>%
+  summarise(nombre = n(),
+            moyenne = round(mean(deaths, na.rm = TRUE), 2),
+            mediane = round(median(deaths, na.rm = TRUE), 2),
+            ecart_type = round(sd(deaths, na.rm = TRUE), 2),
+            .groups = "drop") %>%
+  kable(col.names = c("Contexte", "Nombre", "Moyenne", "Médiane", "Écart-type"))
+```
+
+**Analyse des résultats.** Les deux distributions sont proches, mais le pro apparaît légèrement plus resserré et moins exposé aux valeurs extrêmes. Cela va dans le sens d'une meilleure discipline collective, sans créer de frontière nette entre les deux niveaux. Mourir fait aussi partie du jeu d'équipe : certains sacrifices peuvent être rationnels s'ils permettent de gagner un objectif.
+
+
+\newpage
+
+## Q18 — L'importance donnée à la vision est-elle similaire entre pros et SoloQ ?
+
+**Objectif de l’analyse.** On compare le nombre moyen de wards posées par rôle dans les deux contextes. Cette question reprend l'analyse de Clément en corrigeant les couleurs : SoloQ en rouge, pro en bleu.
+
+```{r q19-vision-role-compare}
+vision_df <- bind_rows(
+  soloq %>% transmute(contexte = "SoloQ", role, wards = wards_placed, game_duration),
+  pro   %>% transmute(contexte = "Pro", role, wards = wardsplaced, game_duration)
+) %>%
+  filter(!is.na(role)) %>%
+  mutate(
+    contexte = factor(contexte, levels = c("SoloQ", "Pro")),
+    role = recode(role, "UTILITY" = "SUPP"),
+    role = factor(role, levels = role_levels),
+    duree_min = game_duration / 60,
+    wpm = wards / duree_min
+  )
+
+vision_df %>%
+  group_by(contexte, role) %>%
+  summarise(avg_wards = mean(wards, na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = role, y = avg_wards, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.85), color = "white") +
+  geom_text(aes(label = round(avg_wards, 1)),
+            position = position_dodge(width = 0.85), vjust = -0.5, size = 3.3) +
+  scale_fill_manual(values = col_contexte) +
+  expand_limits(y = 65) +
+  labs(
+    title    = "Investissement en vision : SoloQ vs Pro",
+    subtitle = "Nombre moyen de wards posées par rôle",
+    x = "Rôle", y = "Nombre moyen de wards", fill = "Contexte"
+  )
+```
+
+**Analyse des résultats.** Les supports concentrent l'essentiel de la vision dans les deux contextes, mais l'intensité est plus élevée chez les pros. Les autres rôles posent également plus de wards en pro, ce qui indique une responsabilité plus collective du contrôle de la carte. La vision apparaît donc comme un marqueur clair de professionnalisation.
+
+
+\newpage
+
+## Q19 — Le vision gap dépend-il de la durée du match ?
+
+**Objectif de l’analyse.** Les parties plus longues permettent mécaniquement de poser plus de wards. On observe donc la relation entre durée et vision, en séparant les supports des autres rôles pour éviter que les deux groupes ne se mélangent.
+
+```{r q20-vision-duration-compare}
+vision_time <- vision_df %>%
+  mutate(type_role = ifelse(role == "SUPP", "Supports", "Autres rôles")) %>%
+  filter(duree_min > 15, duree_min < 50)
+
+ggplot(vision_time, aes(x = duree_min, y = wards, color = contexte)) +
+  geom_point(alpha = 0.10, size = 1) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1.1) +
+  facet_wrap(~ type_role, scales = "free_y") +
+  scale_color_manual(values = col_contexte) +
+  labs(
+    title = "Vision selon la durée de la partie",
+    subtitle = "Séparation supports / autres rôles pour mieux lire les tendances",
+    x = "Durée (minutes)", y = "Nombre de wards", color = "Contexte"
+  )
+```
+
+**Analyse des résultats.** La vision augmente naturellement avec la durée, mais la pente est plus élevée en pro, surtout chez les supports. Les professionnels renforcent leur contrôle de carte au fil de la partie, alors qu'en SoloQ la progression est plus modérée. Cela suggère une vision plus planifiée et plus liée aux objectifs à haut niveau.
+
+
+\newpage
+
+## Q20 — L'intensité de vision est-elle réellement plus élevée en pro une fois la durée prise en compte ?
+
+**Objectif de l’analyse.** Pour neutraliser l'effet mécanique de la durée, on calcule les wards par minute (`WPM`). Cette métrique permet de comparer l'intensité de vision indépendamment du temps de jeu.
+
+```{r q21-wpm-compare}
+vision_df %>%
+  filter(duree_min > 15, duree_min < 50) %>%
+  ggplot(aes(x = role, y = wpm, fill = contexte)) +
+  geom_boxplot(outlier.alpha = 0.15) +
+  scale_fill_manual(values = col_contexte) +
+  coord_cartesian(ylim = c(0, 3)) +
+  labs(
+    title    = "Intensité de vision (wards par minute)",
+    subtitle = "Normalisée par la durée de partie pour neutraliser l'effet du temps",
+    x = "Rôle", y = "Wards par minute", fill = "Contexte"
+  )
+```
+
+**Analyse des résultats.** Même une fois la durée prise en compte, les pros conservent une intensité de vision supérieure, surtout sur le rôle support. La dispersion reste cependant forte, ce qui rappelle que la vision dépend du déroulement de la partie, de la domination et des objectifs à venir. L'écart pro/SoloQ tient donc autant à la régularité qu'à la quantité brute.
+
+
+\newpage
+
+## Q21 — Les performances sont-elles plus stables en pro ?
+
+**Objectif de l’analyse.** Pour mesurer la stabilité, on compare la dispersion standardisée de plusieurs métriques entre SoloQ et pro. Les variables sont standardisées afin que les écarts-types soient comparables malgré des unités différentes.
+
+```{r q22-stability-compare}
+dispersion_metrics <- combined_clean %>%
+  select(contexte, kills, deaths, assists, kda, gold, cs) %>%
+  pivot_longer(cols = c(kills, deaths, assists, kda, gold, cs),
+               names_to = "metrique", values_to = "valeur") %>%
+  group_by(metrique) %>%
+  mutate(valeur_standardisee = as.numeric(scale(valeur))) %>%
+  ungroup() %>%
+  group_by(contexte, metrique) %>%
+  summarise(ecart_type = sd(valeur_standardisee, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    metrique = recode(metrique, kills = "Kills", deaths = "Deaths",
+                      assists = "Assists", kda = "KDA", gold = "Gold", cs = "CS"),
+    metrique = factor(metrique, levels = c("Kills", "Deaths", "Assists", "KDA", "Gold", "CS"))
+  )
+
+ggplot(dispersion_metrics, aes(x = metrique, y = ecart_type, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.72), width = 0.62, color = "white") +
+  geom_text(aes(label = round(ecart_type, 2)),
+            position = position_dodge(width = 0.72),
+            vjust = -0.35, size = 3.1) +
+  scale_fill_manual(values = col_contexte) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1),
+                     expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = "Dispersion standardisée des performances",
+    subtitle = "Les métriques sont standardisées pour comparer leurs écarts-types sur la même échelle",
+    x = "Métrique", y = "Écart-type standardisé", fill = "Contexte"
+  )
+```
+
+**Analyse des résultats.** La stabilité en pro n'est pas uniforme. Certaines dimensions peuvent être plus resserrées grâce à la discipline collective, mais d'autres restent très variables à cause de la spécialisation des rôles. Un support professionnel peut accumuler beaucoup d'assists, tandis qu'un carry peut concentrer les ressources et les dégâts. La scène pro n'est donc pas simplement plus stable : elle est plus structurée.
+
+
+\newpage
+
+# L'application Shiny
+
+Une application Shiny accompagne ce rapport (dossier `shiny/`). Elle permet d'explorer interactivement les deux datasets, avec des filtres par contexte, rôle et métrique, répartis en plusieurs onglets : aperçu des données, comparaison SoloQ vs Pro, profil gagnant, early game et objectifs, rôles et champions. L'application a également été mise en ligne afin de pouvoir être consultée directement : https://fadi-farhat.shinyapps.io/league-of-sn/.
+
+Les figures ci-dessous reproduisent deux graphiques de l'application pour montrer le lien entre le rapport et l'interface interactive.
+
+**Objectif de l’analyse.** Cette première capture reprend l'onglet de comparaison SoloQ vs Pro. L'objectif est de montrer que l'application permet de retrouver rapidement les tendances principales du rapport, ici la différence de KDA moyen selon le rôle et le contexte. On s'attend à observer une spécialisation plus marquée en pro, notamment sur les rôles qui participent davantage aux actions collectives.
+
+```{r shiny-capture-1}
+combined %>%
+  group_by(contexte, role) %>%
+  summarise(kda_moy = mean(kda[kda <= 20], na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = role, y = kda_moy, fill = contexte)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = round(kda_moy, 1)),
+            position = position_dodge(width = 0.8), vjust = -0.4, size = 3.3) +
+  scale_fill_manual(values = col_contexte) +
+  labs(
+    title    = "Capture Shiny : KDA moyen par rôle et contexte",
+    subtitle = "Onglet SoloQ vs Pro, métrique paramétrable dans l'application",
+    x = "Rôle", y = "KDA moyen", fill = "Contexte"
+  )
+```
+
+**Analyse des résultats.** Cette première capture, paramétrable dans l'application, met en évidence la spécialisation des rôles déjà repérée dans le rapport. L'intérêt de la version Shiny est qu'elle ne fige pas la lecture : l'utilisateur peut changer la métrique, filtrer un rôle ou comparer directement les deux contextes. La limite principale est que cette vue repose sur des moyennes, ce qui masque les distributions et les valeurs extrêmes étudiées dans les questions précédentes.
+
+**Objectif de l’analyse.** Cette seconde capture reprend la logique de l'early game professionnel. L'objectif est de montrer comment l'application permet d'explorer rapidement le lien entre l'écart de gold à 10 minutes et le taux de victoire. On s'attend à une progression du taux de victoire lorsque l'avance économique augmente, tout en conservant une zone d'incertitude autour de l'équilibre.
+
+```{r shiny-capture-2}
+pro_bins_simple %>%
+  ggplot(aes(x = tranche, y = winrate, fill = winrate)) +
+  geom_col(width = 0.7) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray40") +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  scale_fill_gradient(low = col_issue["Défaite"], high = col_issue["Victoire"]) +
+  labs(
+    title    = "Capture Shiny : winrate selon le gold diff @10",
+    subtitle = "Onglet Early game & objectifs, filtrable par rôle dans l'application",
+    x = "Tranche de gold diff @10", y = "Taux de victoire"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        legend.position = "none")
+```
+
+**Analyse des résultats.** Cette seconde capture reprend la relation entre avantage économique précoce et victoire. Le filtre par rôle de l'application permet de prolonger l'analyse réalisée dans le rapport, notamment en vérifiant si la relation est plus forte sur les rôles carry que sur le support. Il faut toutefois garder en tête qu'une tranche de gold simplifie la réalité : deux joueurs dans la même tranche peuvent avoir des contextes de partie très différents.
+
+
+\newpage
+
+# Visualisation Tableau
+
+**Objectif de l’analyse.** Cette dernière visualisation reprend le tableau de bord Tableau / Power BI présenté dans les livrables. Elle complète les analyses R en montrant la méta compétitive sous forme de treemap : chaque rectangle représente un champion, sa taille correspond à sa fréquence de présence et sa couleur à son taux de victoire moyen. L'objectif n'est pas de remplacer les analyses statistiques précédentes, mais d'ajouter une lecture exploratoire et interactive des champions les plus présents dans la méta.
+
+```{r tableau-visualisation, out.width="95%"}
+knitr::include_graphics("assets/tableau_meta_competitive.png")
+```
+
+**Analyse des résultats.** Les champions les plus visibles sont ceux qui dominent la méta par leur fréquence de sélection ou de présence. Cette visualisation est moins précise statistiquement que les graphiques R, mais elle est très utile pour une lecture interactive : on repère rapidement les champions importants, puis on peut filtrer par rôle ou par ligue dans l'outil de datavisualisation. Sa principale limite est qu'une treemap est moins adaptée pour comparer précisément deux valeurs proches ; elle doit donc être lue comme un outil d'exploration visuelle plutôt que comme une preuve statistique isolée.
+
+
+\newpage
+
+# Conclusion
+
+Au départ, on aurait pu penser que la différence entre SoloQ et scène professionnelle se résumerait simplement à une différence de niveau : les pros auraient de meilleures statistiques, plus de KDA, moins de morts et plus de vision. En réalité, l'analyse montre quelque chose de plus intéressant. Les pros ne sont pas seulement meilleurs statistiquement ; leur jeu est surtout beaucoup plus structuré.
+
+En SoloQ, les variables qui ressortent le plus sont très individuelles : le KDA, les kills, les assists et surtout le fait de ne pas mourir. Cela correspond assez bien à ce que l'on ressent en jouant : une partie classée peut très vite basculer lorsqu'un joueur prend beaucoup d'avance ou lorsqu'un autre accumule trop d'erreurs. Le KDA est donc très parlant, mais il reste imparfait, car il mélange ce que le joueur provoque réellement et ce que l'équipe autour de lui permet.
+
+En pro, la lecture change. L'avantage de gold en début de partie, les objectifs comme le baron, la vision et la répartition des ressources montrent un jeu beaucoup plus collectif. Ce qui nous a marqué, c'est que certaines statistiques ne prennent vraiment du sens qu'en tenant compte du rôle. Un support peut avoir peu de ressources mais être essentiel par sa vision et ses assists ; un carry peut concentrer le gold et les dégâts ; un top peut avoir un KDA moins impressionnant tout en jouant un rôle utile dans l'équilibre de l'équipe.
+
+Cette comparaison nous a donc forcés à nuancer nos premières intuitions. Les graphiques ne disent pas seulement « les gagnants ont de meilleures stats » : ils montrent surtout que la victoire dépend de la manière dont les statistiques s'articulent entre elles. En SoloQ, l'impact individuel ressort davantage. En pro, c'est la cohérence collective qui donne du sens aux chiffres.
+
+La principale limite reste la nature des données. Certaines variables importantes manquent côté pro, notamment les dragons, les hérauts ou les tours. De plus, beaucoup de relations observées sont des corrélations : un joueur ne gagne pas forcément parce qu'il a un bon KDA, il peut aussi avoir un bon KDA parce que son équipe est déjà en train de gagner. Pour aller plus loin, il faudrait intégrer des données minute par minute, la draft des champions, les positions sur la carte ou une vraie modélisation prédictive de la victoire.
+
+
+\newpage
+
+# Annexe : répartition du travail
+
+La répartition s'est organisée autour des trois axes d'analyse, chaque membre prenant en charge un ou plusieurs angles puis contribuant à la consolidation du rapport et de l'application. Les commits Github permettent de vérifier la répartition réelle.
+
+| Membre | Contributions principales |
+|---|---|
+| **Clément Menaucourt** | Analyse complète de la vision : wards par rôle, lien vision-victoire, vision/durée, WPM et vision/snowball. |
+| **Fadi Farhat** | Survie en SoloQ, profil gagnant en pro, objectifs (barons), KDA SoloQ vs pro et corrélations pro corrigées, Participation à l'application Shiny et au rapport final. |
+| **Yevhenii Telychko** | KDA comme indicateur de victoire, styles de jeu par rôle, profils standardisés, early game et stabilité des performances. |
+| **Nezar Fagouri** | Réalisation de l'application Shiny, Impact de l'écart de gold à 10 minutes, variation par rôle, comparaison des morts SoloQ/pro, ressources économiques par rôle, rédaction du rapport. |
+| **Commun** | Choix et harmonisation des datasets, structure du rapport, application Shiny, relecture et mise en forme finale. |
+
+**Retour critique sur l'organisation.** Le découpage par axe a permis de répartir le travail sans dépendances bloquantes et de couvrir un large éventail de questions. Son principal défaut a été un risque de doublons, notamment sur le KDA, la vision et le gold. Cette version consolidée fusionne ces angles au lieu de les répéter, harmonise les couleurs et remplace les visualisations erronées par les analyses issues des dossiers individuels.
