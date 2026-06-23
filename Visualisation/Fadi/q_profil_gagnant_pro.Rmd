@@ -26,9 +26,7 @@ library(tidyverse)
 library(knitr)
 library(fmsb)
 
-result_colors <- c("Défaite" = "#D62728", "Victoire" = "#2CA02C")
-
-pro <- read_delim("../../data/lol_pro_scene_dataset.csv",
+pro <- read_delim("C:/Users/fadif/Desktop/if36/data/lol_pro_scene_dataset.csv",
                   delim          = ";",
                   locale         = locale(decimal_mark = ","),
                   show_col_types = FALSE) %>%
@@ -40,6 +38,7 @@ pro_clean <- pro %>%
   select(win, kills, deaths, kda, gold, cs, vision,
          kill_participation, golddiffat10) %>%
   filter(!is.na(golddiffat10)) %>%
+  filter(is.finite(kda)) %>%
   mutate(win = as.logical(win))
 
 profil_win <- pro_clean %>%
@@ -109,8 +108,8 @@ radar_data <- data.frame(
 
 rownames(radar_data) <- c("max", "min", "Victoire", "Défaite")
 
-col_win  <- result_colors["Victoire"]
-col_lose <- result_colors["Défaite"]
+col_win  <- "#2C7BE5"
+col_lose <- "#e74c3c"
 
 radarchart(
   radar_data,
@@ -140,10 +139,10 @@ legend(
 )
 ```
 
-Le radar chart montre visuellement que la surface verte (gagnants) est plus grande
+Le radar chart montre visuellement que la surface bleue (gagnants) est plus grande
 que la rouge (perdants) sur presque toutes les dimensions. Le KDA et les kills
 sont les variables où l'écart est le plus marqué. En revanche le CS et la Vision
-ont des surfaces presque identiques ces variables ne semblent pas discriminantes.
+ont des surfaces presque identiques — ces variables ne semblent pas discriminantes.
 
 ```{r tableau-vraies-valeurs}
 data.frame(
@@ -171,16 +170,18 @@ data.frame(
 
 Le tableau confirme avec les vraies valeurs ce qu'on voit dans le radar. Les
 gagnants font en moyenne 4.4 kills contre 2.1 pour les perdants, et un KDA de
-8.6 contre 1.8 c'est un écart énorme. Le Gold est aussi plus élevé chez les
+8.6 contre 1.8 — c'est un écart énorme. Le Gold est aussi plus élevé chez les
 gagnants (13 537 vs 11 394). En revanche le CS (226 vs 213) et la Vision (59 vs
 55) sont proches — ces variables ne permettent pas de distinguer les deux groupes.
 
 ```{r correlation, fig.width=8, fig.height=5}
+library(tidyverse)
+
 cor_data <- pro_clean %>%
   mutate(win_num = as.integer(win)) %>%
-  select(win_num, kills, deaths, kda, gold, cs,
-         vision, kill_participation, golddiffat10) %>%
-  cor(use = "complete.obs")
+  select(win_num, kda, kills, deaths, gold, cs, vision,
+         kill_participation, golddiffat10) %>%
+  cor(use = "complete.obs", method = "pearson")
 
 cor_win <- data.frame(
   variable    = rownames(cor_data),
@@ -189,9 +190,9 @@ cor_win <- data.frame(
   filter(variable != "win_num") %>%
   mutate(
     variable = recode(variable,
+      kda                = "KDA",
       kills              = "Kills",
       deaths             = "Deaths",
-      kda                = "KDA",
       gold               = "Gold",
       cs                 = "CS",
       vision             = "Vision",
@@ -209,9 +210,12 @@ ggplot(cor_win, aes(x = reorder(variable, correlation),
             size = 3.5) +
   geom_hline(yintercept = 0, color = "grey40") +
   coord_flip() +
-  scale_fill_gradient2(low = result_colors["Défaite"], mid = "white",
-                       high = result_colors["Victoire"], midpoint = 0) +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
+  scale_fill_gradient2(low = "#e74c3c", mid = "white",
+                       high = "#2C7BE5", midpoint = 0) +
+  scale_y_continuous(
+    limits = c(-0.7, 0.8),
+    expand = expansion(mult = 0.1)
+  ) +
   labs(
     title    = "Q4 — Corrélation des variables avec la victoire (Pro)",
     subtitle = "Plus la valeur est élevée, plus la variable est liée à la victoire",
@@ -223,9 +227,9 @@ ggplot(cor_win, aes(x = reorder(variable, correlation),
   theme(legend.position = "none")
 ```
 
-Le graphique de corrélation confirme ce qu'on a vu : le KDA et les kills sont
-les variables les plus corrélées positivement avec la victoire, tandis que les
-deaths sont fortement négativement corrélées. Le gold diff à 10 est aussi
-important, ce qui montre que l'avantage économique précoce joue un rôle
-structurant. En revanche la Vision et le CS ont une corrélation très faible
-ces variables ne permettent pas seules de prédire la victoire.
+Le graphique de corrélation révèle que le KDA est la variable la plus corrélée
+avec la victoire (0.65), suivi des kills (0.38), du gold (0.29) et du gold diff
+à 10 (0.28). Les deaths sont fortement négativement corrélées (-0.53) — mourir
+beaucoup est le meilleur indicateur négatif de victoire. En revanche la Vision
+et le CS ont une corrélation très faible — ces variables ne permettent pas seules
+de prédire la victoire.
